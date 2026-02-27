@@ -105,17 +105,22 @@ export default function Workspace(): JSX.Element {
     try {
       const productId = (await window.api.saveProduct(formData, [])) as number
       if (uploadedImages.length > 0) {
-        await window.api.saveImages(
+        const savedImages = await window.api.saveImages(
           productId,
           uploadedImages.map(img => ({ data: img.data, type: img.type, index: img.index }))
-        )
-        for (const img of uploadedImages) {
+        ) as Array<{ path: string; type: string; index: number; imageId: number }>
+
+        for (let i = 0; i < uploadedImages.length; i++) {
           try {
-            const resp = await fetch(img.data)
+            const imageId = savedImages[i]?.imageId ?? 0
+            if (!imageId) continue
+            const resp = await fetch(uploadedImages[i].data)
             const buf = await resp.arrayBuffer()
             const emb = await generateEmbedding(buf)
-            await window.api.saveVector(0, productId, emb)
-          } catch { /* skip */ }
+            await window.api.saveVector(imageId, productId, emb)
+          } catch (e) {
+            console.error('Failed to save vector for image', i, e)
+          }
         }
       }
       setSaveSuccess(true)
