@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    @apply border-border;
+  }
+
+  html, body {
+    @apply m-0 p-0 bg-surface-0 text-txt-primary antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  }
+
+  body {
+    @apply overflow-hidden;
+  }
+
+  ::selection {
+    @apply bg-accent/30 text-txt-primary;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-4 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-txt-muted;
+  }
+}
+
+@layer components {
+  /* Drag region for macOS title bar */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg
+           transition-all duration-100 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-1 focus:ring-offset-surface-0
+           disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] text-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-3 hover:bg-surface-4 text-txt-primary font-medium py-2 px-4 rounded-lg
+           border border-border transition-all duration-100 focus:outline-none focus:ring-2
+           focus:ring-accent/50 focus:ring-offset-1 focus:ring-offset-surface-0 text-sm;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-surface-3 text-txt-secondary hover:text-txt-primary font-medium py-1.5 px-3 rounded-md
+           transition-all duration-100 text-sm;
+  }
+
+  .btn-danger {
+    @apply bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium py-2 px-4 rounded-lg
+           transition-all duration-100 text-sm;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-surface-2 rounded-xl border border-border overflow-hidden;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer transition-all duration-100
+           hover:bg-surface-3 hover:border-border-accent;
+  }
+
+  .card-selected {
+    @apply card border-accent bg-accent-muted;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full px-3 py-2 bg-surface-1 border border-border rounded-lg text-sm text-txt-primary
+           focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60
+           placeholder-txt-muted transition-all duration-100;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-txt-secondary mb-1 uppercase tracking-wide;
+  }
+
+  /* Layout */
+  .page-container {
+    @apply h-screen flex flex-col overflow-hidden bg-surface-0;
+  }
+
+  .page-content {
+    @apply flex-1 overflow-y-auto;
+  }
+
+  /* Pane */
+  .pane {
+    @apply flex flex-col overflow-hidden;
+  }
+
+  .pane-header {
+    @apply px-4 py-3 border-b border-border shrink-0 flex items-center justify-between;
+  }
+
+  .pane-body {
+    @apply flex-1 overflow-y-auto;
+  }
+
+  /* Skeleton */
+  .skeleton {
+    @apply bg-surface-3 rounded animate-skeleton;
+  }
+
+  /* Keyboard hint */
+  .kbd {
+    @apply inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded
+           bg-surface-3 border border-border text-2xs text-txt-tertiary font-medium;
+  }
+
+  /* Status badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium;
+  }
+  .badge-success {
+    @apply badge bg-emerald-500/15 text-emerald-400;
+  }
+  .badge-warning {
+    @apply badge bg-amber-500/15 text-amber-400;
+  }
+  .badge-danger {
+    @apply badge bg-red-500/15 text-red-400;
+  }
+  .badge-info {
+    @apply badge bg-accent-muted text-accent-text;
+  }
+
+  /* Toast/banner */
+  .banner-warning {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs;
+  }
+  .banner-error {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs;
+  }
+  .banner-success {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs;
+  }
+}
