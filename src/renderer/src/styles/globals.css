@@ -3,6 +3,46 @@
 @tailwind utilities;
 
 @layer base {
+  /* ─── Light theme (default) ─── */
+  :root {
+    --surface-0: 255 255 255;
+    --surface-1: 249 250 251;
+    --surface-2: 243 244 246;
+    --surface-3: 229 231 235;
+    --surface-4: 209 213 219;
+    --border: 229 231 235;
+    --border-subtle: 243 244 246;
+    --border-accent: 156 163 175;
+    --accent: 79 70 229;
+    --accent-hover: 99 102 241;
+    --accent-muted: rgba(79, 70, 229, 0.08);
+    --accent-text: 67 56 202;
+    --txt-primary: 17 24 39;
+    --txt-secondary: 75 85 99;
+    --txt-tertiary: 107 114 128;
+    --txt-muted: 156 163 175;
+  }
+
+  /* ─── Dark theme ─── */
+  .dark {
+    --surface-0: 9 9 11;
+    --surface-1: 17 17 19;
+    --surface-2: 26 26 29;
+    --surface-3: 34 34 37;
+    --surface-4: 43 43 47;
+    --border: 39 39 42;
+    --border-subtle: 30 30 33;
+    --border-accent: 63 63 70;
+    --accent: 99 102 241;
+    --accent-hover: 129 140 248;
+    --accent-muted: rgba(99, 102, 241, 0.12);
+    --accent-text: 165 180 252;
+    --txt-primary: 250 250 250;
+    --txt-secondary: 161 161 170;
+    --txt-tertiary: 113 113 122;
+    --txt-muted: 82 82 91;
+  }
+
   *, *::before, *::after {
     @apply border-border;
   }
@@ -10,6 +50,7 @@
   html, body {
     @apply m-0 p-0 bg-surface-0 text-txt-primary antialiased;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   body {
@@ -35,7 +76,6 @@
 }
 
 @layer components {
-  /* Drag region for macOS title bar */
   .drag-region {
     -webkit-app-region: drag;
   }
@@ -43,7 +83,6 @@
     -webkit-app-region: no-drag;
   }
 
-  /* Buttons */
   .btn-primary {
     @apply bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg
            transition-all duration-100 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-1 focus:ring-offset-surface-0
@@ -62,11 +101,11 @@
   }
 
   .btn-danger {
-    @apply bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium py-2 px-4 rounded-lg
+    @apply bg-red-500/10 hover:bg-red-500/20 font-medium py-2 px-4 rounded-lg
            transition-all duration-100 text-sm;
+    color: var(--danger-text, #ef4444);
   }
 
-  /* Cards */
   .card {
     @apply bg-surface-2 rounded-xl border border-border overflow-hidden;
   }
@@ -80,7 +119,6 @@
     @apply card border-accent bg-accent-muted;
   }
 
-  /* Inputs */
   .input-field {
     @apply w-full px-3 py-2 bg-surface-1 border border-border rounded-lg text-sm text-txt-primary
            focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60
@@ -91,7 +129,6 @@
     @apply block text-xs font-medium text-txt-secondary mb-1 uppercase tracking-wide;
   }
 
-  /* Layout */
   .page-container {
     @apply h-screen flex flex-col overflow-hidden bg-surface-0;
   }
@@ -100,7 +137,6 @@
     @apply flex-1 overflow-y-auto;
   }
 
-  /* Pane */
   .pane {
     @apply flex flex-col overflow-hidden;
   }
@@ -113,42 +149,47 @@
     @apply flex-1 overflow-y-auto;
   }
 
-  /* Skeleton */
   .skeleton {
     @apply bg-surface-3 rounded animate-skeleton;
   }
 
-  /* Keyboard hint */
   .kbd {
     @apply inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded
            bg-surface-3 border border-border text-2xs text-txt-tertiary font-medium;
   }
 
-  /* Status badge */
   .badge {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium;
   }
   .badge-success {
-    @apply badge bg-emerald-500/15 text-emerald-400;
+    @apply badge bg-emerald-500/15 text-emerald-500;
   }
   .badge-warning {
-    @apply badge bg-amber-500/15 text-amber-400;
+    @apply badge bg-amber-500/15 text-amber-500;
   }
   .badge-danger {
-    @apply badge bg-red-500/15 text-red-400;
+    @apply badge bg-red-500/15 text-red-500;
   }
   .badge-info {
     @apply badge bg-accent-muted text-accent-text;
   }
 
-  /* Toast/banner */
   .banner-warning {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs;
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs;
   }
   .banner-error {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs;
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 text-xs;
   }
   .banner-success {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs;
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs;
   }
 }
+
+/* Dark mode overrides for semantic status colors */
+.dark .badge-success { @apply text-emerald-400; }
+.dark .badge-warning { @apply text-amber-400; }
+.dark .badge-danger  { @apply text-red-400; }
+.dark .btn-danger    { color: #f87171; }
+.dark .banner-warning { @apply text-amber-300; }
+.dark .banner-error   { @apply text-red-300; }
+.dark .banner-success { @apply text-emerald-300; }

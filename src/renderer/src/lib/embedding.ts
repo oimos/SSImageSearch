@@ -19,7 +19,7 @@ function getSharedBase(): number[] {
 function getCategoryCentroid(categoryIndex: number): number[] {
   const base = getSharedBase()
   const catRng = seededRandom(10007 + categoryIndex * 7919)
-  const vec = base.map((b) => b + (catRng() * 2 - 1))
+  const vec = base.map((b) => b + 1.5 * (catRng() * 2 - 1))
   return normalize(vec)
 }
 
@@ -68,7 +68,7 @@ export async function generateMockEmbedding(imageData: ArrayBuffer): Promise<num
   const centroid = getCategoryCentroid(clusterIndex)
 
   const rng = seededRandom(hash)
-  const vec = centroid.map((c) => c + (rng() * 2 - 1) * 0.03)
+  const vec = centroid.map((c) => c + (rng() * 2 - 1) * 0.04)
   return normalize(vec)
 }
 

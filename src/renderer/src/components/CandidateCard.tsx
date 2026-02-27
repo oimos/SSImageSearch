@@ -29,14 +29,11 @@ export default function CandidateCard({
   return (
     <div className="card hover:shadow-md transition-shadow duration-200">
       <div className="flex">
-        <div className="w-32 h-32 bg-gray-100 shrink-0 flex items-center justify-center">
+        <div className="w-32 h-32 bg-surface-3 shrink-0 flex items-center justify-center">
           {thumbnail ? (
             <img src={thumbnail} alt={product.model} className="w-full h-full object-cover" />
           ) : (
-            <div
-              className="w-full h-full flex items-center justify-center text-gray-400 text-xs"
-              style={{ backgroundColor: '#f3f4f6' }}
-            >
+            <div className="w-full h-full flex items-center justify-center text-txt-muted text-xs">
               No Image
             </div>
           )}
@@ -46,14 +43,14 @@ export default function CandidateCard({
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold shrink-0">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-accent-muted text-accent-text text-xs font-bold shrink-0">
                   {rank}
                 </span>
-                <h3 className="font-semibold text-gray-900 truncate">{product.brand}</h3>
+                <h3 className="font-semibold text-txt-primary truncate">{product.brand}</h3>
               </div>
-              <p className="text-sm text-gray-600 truncate">{product.model}</p>
+              <p className="text-sm text-txt-secondary truncate">{product.model}</p>
             </div>
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full shrink-0">
+            <span className="text-xs bg-surface-3 text-txt-secondary px-2 py-0.5 rounded-full shrink-0">
               {product.category}
             </span>
           </div>
@@ -66,7 +63,7 @@ export default function CandidateCard({
             {matchReasons.map((reason, i) => (
               <span
                 key={i}
-                className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded"
+                className="text-xs bg-accent-muted text-accent-text px-1.5 py-0.5 rounded"
               >
                 {reason}
               </span>
@@ -80,7 +77,7 @@ export default function CandidateCard({
             <button onClick={onDetail} className="btn-secondary text-xs py-1.5 px-3">
               詳細
             </button>
-            <span className="text-sm font-medium text-gray-900 ml-auto">
+            <span className="text-sm font-medium text-txt-primary ml-auto">
               ¥{product.price.toLocaleString()}
             </span>
           </div>

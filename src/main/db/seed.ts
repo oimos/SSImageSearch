@@ -68,7 +68,7 @@ function generatePlaceholderSVG(brand: string, category: string, index: number):
 </svg>`
 }
 
-const SEED_MODEL = 'mock-v2'
+const SEED_MODEL = 'mock-v3'
 
 export function seedDatabase(): void {
   const db = getDatabase()

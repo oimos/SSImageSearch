@@ -1,32 +1,38 @@
 /** @type {import('tailwindcss').Config} */
+
+function rgb(varName) {
+  return `rgb(var(${varName}) / <alpha-value>)`
+}
+
 module.exports = {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx,html}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         surface: {
-          0: '#09090B',
-          1: '#111113',
-          2: '#1A1A1D',
-          3: '#222225',
-          4: '#2B2B2F'
+          0: rgb('--surface-0'),
+          1: rgb('--surface-1'),
+          2: rgb('--surface-2'),
+          3: rgb('--surface-3'),
+          4: rgb('--surface-4')
         },
         border: {
-          DEFAULT: '#27272A',
-          subtle: '#1E1E21',
-          accent: '#3F3F46'
+          DEFAULT: rgb('--border'),
+          subtle: rgb('--border-subtle'),
+          accent: rgb('--border-accent')
         },
         accent: {
-          DEFAULT: '#6366F1',
-          hover: '#818CF8',
-          muted: 'rgba(99, 102, 241, 0.12)',
-          text: '#A5B4FC'
+          DEFAULT: rgb('--accent'),
+          hover: rgb('--accent-hover'),
+          muted: 'var(--accent-muted)',
+          text: rgb('--accent-text')
         },
         txt: {
-          primary: '#FAFAFA',
-          secondary: '#A1A1AA',
-          tertiary: '#71717A',
-          muted: '#52525B'
+          primary: rgb('--txt-primary'),
+          secondary: rgb('--txt-secondary'),
+          tertiary: rgb('--txt-tertiary'),
+          muted: rgb('--txt-muted')
         }
       },
       fontFamily: {
