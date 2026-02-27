@@ -8,12 +8,19 @@ function seededRandom(seed: number): () => number {
   }
 }
 
+/**
+ * Must match src/shared/vectors.ts getSharedBase / getCategoryCentroid exactly.
+ */
+function getSharedBase(): number[] {
+  const rng = seededRandom(42)
+  return Array.from({ length: VECTOR_DIM }, () => rng() * 2 - 1)
+}
+
 function getCategoryCentroid(categoryIndex: number): number[] {
-  const seed = 42 + categoryIndex * 7919
-  const rng = seededRandom(seed)
-  const vec = Array.from({ length: VECTOR_DIM }, () => rng() * 2 - 1)
-  const norm = Math.sqrt(vec.reduce((s, x) => s + x * x, 0))
-  return vec.map((x) => x / norm)
+  const base = getSharedBase()
+  const catRng = seededRandom(10007 + categoryIndex * 7919)
+  const vec = base.map((b) => b + (catRng() * 2 - 1))
+  return normalize(vec)
 }
 
 function normalize(vec: number[]): number[] {
@@ -61,7 +68,7 @@ export async function generateMockEmbedding(imageData: ArrayBuffer): Promise<num
   const centroid = getCategoryCentroid(clusterIndex)
 
   const rng = seededRandom(hash)
-  const vec = centroid.map((c) => c * 0.7 + (rng() * 2 - 1) * 0.25)
+  const vec = centroid.map((c) => c + (rng() * 2 - 1) * 0.03)
   return normalize(vec)
 }
 

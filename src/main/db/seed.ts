@@ -68,11 +68,21 @@ function generatePlaceholderSVG(brand: string, category: string, index: number):
 </svg>`
 }
 
+const SEED_MODEL = 'mock-v2'
+
 export function seedDatabase(): void {
   const db = getDatabase()
 
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM products').get() as { cnt: number }
-  if (count.cnt > 0) return
+  const hasCurrentVersion = db
+    .prepare(`SELECT COUNT(*) as cnt FROM image_vectors WHERE model_name = ?`)
+    .get(SEED_MODEL) as { cnt: number }
+
+  if (hasCurrentVersion.cnt > 0) return
+
+  // Clear stale data from older vector algorithm
+  db.prepare('DELETE FROM image_vectors').run()
+  db.prepare('DELETE FROM product_images').run()
+  db.prepare('DELETE FROM products').run()
 
   const imagesDir = path.join(app.getPath('userData'), 'images')
   fs.mkdirSync(imagesDir, { recursive: true })
@@ -120,7 +130,7 @@ export function seedDatabase(): void {
           image_id: imageId,
           product_id: productId,
           vector: vectorToBuffer(vector),
-          model_name: 'mock-v1'
+          model_name: SEED_MODEL
         })
       }
     }
