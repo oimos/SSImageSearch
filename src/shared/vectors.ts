@@ -1,6 +1,16 @@
 export const VECTOR_DIM = 512
 
-const CATEGORY_LIST = ['バッグ', 'ジャケット', 'シューズ', 'アクセサリー', '財布']
+/**
+ * Feature layout (must match renderer/lib/embedding.ts):
+ *   [0..506]  13×13 pixel grid, 3 channels each (R, G, B normalized to [-1,1])
+ *   [507]     mean R
+ *   [508]     mean G
+ *   [509]     mean B
+ *   [510]     std R  (contrast)
+ *   [511]     std G  (contrast)
+ */
+
+const GRID = 13
 
 export function seededRandom(seed: number): () => number {
   let s = seed | 0
@@ -24,53 +34,83 @@ function normalize(vec: number[]): number[] {
   return vec.map((x) => x / norm)
 }
 
-function getSharedBase(): number[] {
-  const rng = seededRandom(42)
-  return Array.from({ length: VECTOR_DIM }, () => rng() * 2 - 1)
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '')
+  return {
+    r: parseInt(h.substring(0, 2), 16),
+    g: parseInt(h.substring(2, 4), 16),
+    b: parseInt(h.substring(4, 6), 16)
+  }
 }
 
 /**
- * Centroids share a weak base so cross-category similarity ≈ 25–35%.
- * Category variation is 1.5× the base to create clear separation.
+ * Category hue biases — shifts the synthetic pixel features so that
+ * products in the same category cluster closer together.
  */
-export function getCategoryCentroid(categoryIndex: number): number[] {
-  const base = getSharedBase()
-  const catRng = seededRandom(10007 + categoryIndex * 7919)
-  const vec = base.map((b) => b + 1.5 * (catRng() * 2 - 1))
-  return normalize(vec)
+const CATEGORY_HUE: Record<string, { r: number; g: number; b: number }> = {
+  'バッグ': { r: -10, g: -5, b: 10 },
+  'ジャケット': { r: 5, g: -10, b: -5 },
+  'シューズ': { r: -5, g: 10, b: -10 },
+  'アクセサリー': { r: 10, g: 5, b: -5 },
+  '財布': { r: -5, g: -5, b: 5 }
 }
 
 /**
- * Similarity ranges:
- *   Same brand + category:     ~88–95%
- *   Different brand, same cat: ~72–82%
- *   Different category:        ~22–38%
+ * Generate a seed-data vector that lives in the same 512-dim pixel-feature
+ * space as the renderer's Canvas-extracted embeddings.
+ *
+ * Simulates what a 13×13 resized placeholder SVG would look like:
+ * mostly a solid brand colour with slight per-cell variation and
+ * a few lighter cells to simulate the text overlay.
  */
 export function generateProductVector(
   category: string,
   brand: string,
+  brandColorHex: string,
   productSeed: number
 ): number[] {
-  const catIndex = CATEGORY_LIST.indexOf(category)
-  const centroid = getCategoryCentroid(catIndex >= 0 ? catIndex : 0)
+  const base = hexToRgb(brandColorHex)
+  const hue = CATEGORY_HUE[category] || { r: 0, g: 0, b: 0 }
 
+  const rng = seededRandom(productSeed)
   const brandRng = seededRandom(hashString(brand))
-  const brandOffset = Array.from({ length: VECTOR_DIM }, () => (brandRng() * 2 - 1) * 0.06)
 
-  const prodRng = seededRandom(productSeed)
-  const noise = Array.from({ length: VECTOR_DIM }, () => (prodRng() * 2 - 1) * 0.02)
+  const features: number[] = []
+  let sumR = 0, sumG = 0, sumB = 0
+  const n = GRID * GRID
 
-  const vec = centroid.map((c, i) => c + brandOffset[i] + noise[i])
-  return normalize(vec)
-}
+  for (let i = 0; i < n; i++) {
+    const isText = rng() < 0.15
+    const tr = isText ? 200 : 0
+    const tg = isText ? 200 : 0
+    const tb = isText ? 200 : 0
 
-export function generateQueryVector(imageHash: number): number[] {
-  const clusterIndex = Math.abs(imageHash) % CATEGORY_LIST.length
-  const centroid = getCategoryCentroid(clusterIndex)
+    const pr = Math.max(0, Math.min(255,
+      base.r + hue.r + tr + (brandRng() * 2 - 1) * 20 + (rng() * 2 - 1) * 8))
+    const pg = Math.max(0, Math.min(255,
+      base.g + hue.g + tg + (brandRng() * 2 - 1) * 20 + (rng() * 2 - 1) * 8))
+    const pb = Math.max(0, Math.min(255,
+      base.b + hue.b + tb + (brandRng() * 2 - 1) * 20 + (rng() * 2 - 1) * 8))
 
-  const rng = seededRandom(imageHash)
-  const vec = centroid.map((c) => c + (rng() * 2 - 1) * 0.04)
-  return normalize(vec)
+    const r = pr / 128 - 1
+    const g = pg / 128 - 1
+    const b = pb / 128 - 1
+
+    features.push(r, g, b)
+    sumR += r; sumG += g; sumB += b
+  }
+
+  const meanR = sumR / n, meanG = sumG / n, meanB = sumB / n
+  features.push(meanR, meanG, meanB)
+
+  let varR = 0, varG = 0
+  for (let i = 0; i < n; i++) {
+    varR += (features[i * 3] - meanR) ** 2
+    varG += (features[i * 3 + 1] - meanG) ** 2
+  }
+  features.push(Math.sqrt(varR / n), Math.sqrt(varG / n))
+
+  return normalize(features)
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

@@ -1,27 +1,5 @@
 const VECTOR_DIM = 512
-
-function seededRandom(seed: number): () => number {
-  let s = seed | 0
-  return () => {
-    s = (s * 1664525 + 1013904223) | 0
-    return (s >>> 0) / 0xffffffff
-  }
-}
-
-/**
- * Must match src/shared/vectors.ts getSharedBase / getCategoryCentroid exactly.
- */
-function getSharedBase(): number[] {
-  const rng = seededRandom(42)
-  return Array.from({ length: VECTOR_DIM }, () => rng() * 2 - 1)
-}
-
-function getCategoryCentroid(categoryIndex: number): number[] {
-  const base = getSharedBase()
-  const catRng = seededRandom(10007 + categoryIndex * 7919)
-  const vec = base.map((b) => b + 1.5 * (catRng() * 2 - 1))
-  return normalize(vec)
-}
+const GRID = 13 // 13×13 pixels → 169 cells × 3 channels + 5 stats = 512
 
 function normalize(vec: number[]): number[] {
   const norm = Math.sqrt(vec.reduce((s, x) => s + x * x, 0))
@@ -29,47 +7,73 @@ function normalize(vec: number[]): number[] {
   return vec.map((x) => x / norm)
 }
 
-function hashBuffer(data: ArrayBuffer): number {
-  const bytes = new Uint8Array(data)
-  let hash = 5381
-  const len = Math.min(bytes.length, 20000)
-  for (let i = 0; i < len; i++) {
-    hash = ((hash << 5) + hash + bytes[i]) | 0
+/**
+ * Extract a 512-dim feature vector from actual pixel content.
+ * Resizes image to 13×13 via Canvas, then encodes per-cell RGB
+ * plus global color statistics.
+ *
+ * Result: similar-looking images produce similar vectors regardless
+ * of file format, compression, or minor perspective changes.
+ */
+async function extractPixelFeatures(imageData: ArrayBuffer): Promise<number[]> {
+  const blob = new Blob([imageData])
+  const bitmap = await createImageBitmap(blob)
+
+  const canvas = new OffscreenCanvas(GRID, GRID)
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(bitmap, 0, 0, GRID, GRID)
+  bitmap.close()
+
+  const { data } = ctx.getImageData(0, 0, GRID, GRID)
+  const features: number[] = []
+  let sumR = 0, sumG = 0, sumB = 0
+  const n = GRID * GRID
+
+  for (let i = 0; i < n; i++) {
+    const r = data[i * 4] / 128 - 1
+    const g = data[i * 4 + 1] / 128 - 1
+    const b = data[i * 4 + 2] / 128 - 1
+    features.push(r, g, b)
+    sumR += r; sumG += g; sumB += b
   }
-  return hash
+
+  const meanR = sumR / n, meanG = sumG / n, meanB = sumB / n
+  features.push(meanR, meanG, meanB)
+
+  let varR = 0, varG = 0
+  for (let i = 0; i < n; i++) {
+    varR += (features[i * 3] - meanR) ** 2
+    varG += (features[i * 3 + 1] - meanG) ** 2
+  }
+  features.push(Math.sqrt(varR / n), Math.sqrt(varG / n))
+
+  return normalize(features)
 }
 
-function analyzeImageColors(data: ArrayBuffer): { r: number; g: number; b: number } {
-  const bytes = new Uint8Array(data)
-  let r = 0, g = 0, b = 0, count = 0
-
-  const step = Math.max(1, Math.floor(bytes.length / 3000))
-  for (let i = 0; i + 2 < bytes.length; i += step * 3) {
-    r += bytes[i]
-    g += bytes[i + 1]
-    b += bytes[i + 2]
-    count++
+/**
+ * Hash-based fallback for environments without Canvas (e.g. Node.js tests).
+ * Deterministic but NOT content-aware — only used as last resort.
+ */
+function hashFallback(imageData: ArrayBuffer): number[] {
+  const bytes = new Uint8Array(imageData)
+  let hash = 5381
+  for (let i = 0; i < Math.min(bytes.length, 20000); i++) {
+    hash = ((hash << 5) + hash + bytes[i]) | 0
   }
 
-  if (count === 0) return { r: 128, g: 128, b: 128 }
-  return {
-    r: Math.round(r / count),
-    g: Math.round(g / count),
-    b: Math.round(b / count)
-  }
+  let s = hash | 0
+  const rng = (): number => { s = (s * 1664525 + 1013904223) | 0; return (s >>> 0) / 0xffffffff }
+  const vec = Array.from({ length: VECTOR_DIM }, () => rng() * 2 - 1)
+  return normalize(vec)
 }
 
 export async function generateMockEmbedding(imageData: ArrayBuffer): Promise<number[]> {
-  const hash = hashBuffer(imageData)
-  const colors = analyzeImageColors(imageData)
-
-  const colorBias = (colors.r + colors.g * 2 + colors.b * 3) % 5
-  const clusterIndex = (Math.abs(hash) + colorBias) % 5
-  const centroid = getCategoryCentroid(clusterIndex)
-
-  const rng = seededRandom(hash)
-  const vec = centroid.map((c) => c + (rng() * 2 - 1) * 0.04)
-  return normalize(vec)
+  if (typeof OffscreenCanvas !== 'undefined') {
+    try {
+      return await extractPixelFeatures(imageData)
+    } catch { /* fallback below */ }
+  }
+  return hashFallback(imageData)
 }
 
 export async function generateEmbedding(imageData: ArrayBuffer): Promise<number[]> {

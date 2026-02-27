@@ -68,7 +68,7 @@ function generatePlaceholderSVG(brand: string, category: string, index: number):
 </svg>`
 }
 
-const SEED_MODEL = 'mock-v3'
+const SEED_MODEL = 'mock-v4'
 
 export function seedDatabase(): void {
   const db = getDatabase()
@@ -125,7 +125,8 @@ export function seedDatabase(): void {
         })
         const imageId = imgResult.lastInsertRowid as number
 
-        const vector = generateProductVector(p.category, p.brand, i * 100 + j)
+        const brandColor = BRAND_COLORS[p.brand] || '#555555'
+        const vector = generateProductVector(p.category, p.brand, brandColor, i * 100 + j)
         insertVector.run({
           image_id: imageId,
           product_id: productId,
