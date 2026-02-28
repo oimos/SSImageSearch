@@ -76,7 +76,7 @@ export default function Layout(): JSX.Element {
           <button
             data-testid="search-trigger"
             onClick={() => {
-              const evt = new KeyboardEvent('keydown', { key: 'k', metaKey: true })
+              const evt = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true })
               document.dispatchEvent(evt)
             }}
             className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-surface-2 border border-border hover:border-border-accent text-txt-tertiary text-xs transition-colors"

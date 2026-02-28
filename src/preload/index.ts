@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ProductFilter, ProductFormData } from '@shared/types'
+import type { ProductFilter, ProductFormData, SearchFilter } from '@shared/types'
 
 const api = {
   getProducts: (filter?: ProductFilter) => ipcRenderer.invoke('db:get-products', filter),
@@ -15,8 +15,8 @@ const api = {
 
   getProductCount: () => ipcRenderer.invoke('db:get-product-count'),
 
-  searchSimilar: (vector: number[], limit?: number) =>
-    ipcRenderer.invoke('db:search-similar', vector, limit),
+  searchSimilar: (vector: number[] | null, limit?: number, filters?: SearchFilter) =>
+    ipcRenderer.invoke('db:search-similar', vector, limit, filters),
 
   saveImages: (
     productId: number,

@@ -73,9 +73,26 @@ export interface ProductFilter {
   limit?: number
 }
 
+export interface SearchFilter {
+  brand?: string
+  category?: string
+  color?: string
+  material?: string
+}
+
 export const BRANDS = ['GUCCI', 'LOUIS VUITTON', 'CHANEL', 'PRADA', 'HERMES', 'BURBERRY'] as const
 export const CATEGORIES = ['バッグ', 'ジャケット', 'シューズ', 'アクセサリー', '財布'] as const
 export const CONDITIONS = ['S', 'A', 'B', 'C', 'D'] as const
+export const COLORS = [
+  'ブラック', 'ホワイト', 'ネイビー', 'ブラウン', 'ベージュ',
+  'レッド', 'ピンク', 'ブルー', 'ゴールド', 'キャメル',
+  'インディゴ', 'エトゥープ', 'マルチ', 'モノグラム', 'ダミエ'
+] as const
+export const MATERIALS = [
+  'レザー', 'キャンバス', 'ナイロン', 'ウール', 'シルク',
+  'デニム', 'ツイード', 'カシミア', 'コットン', 'ラムスキン',
+  'キャビアスキン', 'サフィアーノレザー', 'トゴ', 'エプソン', 'メタル'
+] as const
 export const IMAGE_TYPES: ImageType[] = ['tag', 'full', 'logo', 'detail', 'other']
 export const IMAGE_TYPE_LABELS: Record<ImageType, string> = {
   tag: 'タグ',
