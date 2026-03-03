@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { initializeSchema } from './db/schema'
@@ -6,6 +7,7 @@ import { closeDatabase } from './db/connection'
 import { registerProductHandlers } from './ipc/product'
 import { registerImageHandlers } from './ipc/image'
 import { registerSearchHandlers } from './ipc/search'
+import { registerOcrHandlers } from './ipc/ocr'
 
 if (process.env.E2E_USER_DATA) {
   app.setPath('userData', process.env.E2E_USER_DATA)
@@ -38,13 +40,14 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   initializeSchema()
-  seedDatabase()
+  await seedDatabase()
 
   registerProductHandlers()
   registerImageHandlers()
   registerSearchHandlers()
+  registerOcrHandlers()
 
   createWindow()
 

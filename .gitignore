@@ -7,3 +7,7 @@ dist/
 test-results/
 playwright-report/
 blob-report/
+.env
+.env.local
+seed-data/images/
+rakuten_test/images/

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ProductFilter, ProductFormData, SearchFilter } from '@shared/types'
+import type { ProductFilter, ProductFormData, SearchFilter, OcrNormalizeOptions } from '@shared/types'
 
 const api = {
   getProducts: (filter?: ProductFilter) => ipcRenderer.invoke('db:get-products', filter),
@@ -28,7 +28,10 @@ const api = {
   saveVector: (imageId: number, productId: number, vector: number[]) =>
     ipcRenderer.invoke('db:save-vector', imageId, productId, vector),
 
-  getAllVectors: () => ipcRenderer.invoke('db:get-all-vectors')
+  getAllVectors: () => ipcRenderer.invoke('db:get-all-vectors'),
+
+  normalizeOcr: (rawOcrText: string, options?: OcrNormalizeOptions) =>
+    ipcRenderer.invoke('ocr:normalize', rawOcrText, options)
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -1,16 +1,64 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BRANDS, CATEGORIES, IMAGE_TYPE_LABELS } from '@shared/types'
+import { BRANDS, CATEGORIES } from '@shared/types'
 import type { Product, ProductImage, ProductFilter } from '@shared/types'
+
+type ProductWithThumb = Product & { thumbnail_path?: string }
+type ViewMode = 'list' | 'grid'
+
+function useThumbnail(path?: string): string | null {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    if (!path) return
+    let cancelled = false
+    window.api.readImage(path).then((d) => {
+      if (d && !cancelled) setSrc(d)
+    })
+    return () => { cancelled = true }
+  }, [path])
+  return src
+}
+
+function ThumbnailImage({ path, size = 'md' }: { path?: string; size?: 'sm' | 'md' | 'lg' }): JSX.Element {
+  const src = useThumbnail(path)
+  const sizeClass = size === 'sm' ? 'w-10 h-10' : size === 'lg' ? 'w-full h-36' : 'w-14 h-14'
+  const roundClass = size === 'lg' ? 'rounded-lg' : 'rounded-lg'
+
+  if (!path) {
+    return (
+      <div className={`${sizeClass} ${roundClass} bg-surface-3 flex items-center justify-center shrink-0`}>
+        <svg className="w-4 h-4 text-txt-muted/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return src ? (
+    <img src={src} className={`${sizeClass} ${roundClass} object-cover shrink-0`} />
+  ) : (
+    <div className={`${sizeClass} ${roundClass} bg-surface-3 animate-pulse shrink-0`} />
+  )
+}
+
+function buildDescription(p: Product): string {
+  const parts: string[] = []
+  if (p.color) parts.push(p.color)
+  if (p.material) parts.push(p.material)
+  if (p.size) parts.push(`サイズ: ${p.size}`)
+  if (p.notes) parts.push(p.notes)
+  return parts.join(' / ') || '詳細情報なし'
+}
 
 export default function History(): JSX.Element {
   const navigate = useNavigate()
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductWithThumb[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ProductFilter>({ page: 1, limit: 20 })
   const [brandFilter, setBrandFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detail, setDetail] = useState<{ product: Product; images: ProductImage[] } | null>(null)
@@ -91,11 +139,33 @@ export default function History(): JSX.Element {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-lg font-bold text-txt-primary">買取履歴</h1>
-              <p data-testid="history-total" className="text-xs text-txt-tertiary">{total}件</p>
+              <p data-testid="history-total" className="text-xs text-txt-tertiary">{total}件の買取データ</p>
             </div>
-            <button onClick={() => navigate('/workspace')} className="btn-primary text-xs py-1.5 px-3">
-              新規買取
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5 bg-surface-2 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-surface-0 shadow-sm text-txt-primary' : 'text-txt-muted hover:text-txt-secondary'}`}
+                  title="リスト表示"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-surface-0 shadow-sm text-txt-primary' : 'text-txt-muted hover:text-txt-secondary'}`}
+                  title="グリッド表示"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18a2.25 2.25 0 012.25 2.25v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 15.75V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                  </svg>
+                </button>
+              </div>
+              <button onClick={() => navigate('/workspace')} className="btn-primary text-xs py-1.5 px-3">
+                新規買取
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -125,10 +195,11 @@ export default function History(): JSX.Element {
             <div data-testid="history-loading" className="space-y-2">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-4 px-4 py-3">
-                  <div className="skeleton w-10 h-10 rounded-lg" />
+                  <div className="skeleton w-14 h-14 rounded-lg" />
                   <div className="flex-1 space-y-1.5">
                     <div className="skeleton h-3 w-40 rounded" />
                     <div className="skeleton h-2.5 w-24 rounded" />
+                    <div className="skeleton h-2 w-56 rounded" />
                   </div>
                   <div className="skeleton h-3 w-20 rounded" />
                 </div>
@@ -138,39 +209,68 @@ export default function History(): JSX.Element {
             <div data-testid="empty-state" className="text-center py-16 text-sm text-txt-muted">
               {brandFilter || categoryFilter ? '条件に合うデータがありません' : '買取データがありません'}
             </div>
+          ) : viewMode === 'list' ? (
+            <div data-testid="history-table" className="card divide-y divide-border-subtle">
+              {products.map(p => (
+                <div
+                  key={p.id}
+                  data-testid="history-row"
+                  data-product-id={p.id}
+                  className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
+                    selectedId === p.id ? 'bg-accent-muted' : 'hover:bg-surface-3/50'
+                  }`}
+                  onClick={() => handleRowClick(p)}
+                >
+                  <ThumbnailImage path={p.thumbnail_path} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-semibold text-txt-primary">{p.brand}</span>
+                      <span className="badge-info">{p.category}</span>
+                      <span className="text-2xs text-txt-muted">{p.condition}ランク</span>
+                    </div>
+                    <p className="text-xs text-txt-secondary truncate">{p.model || '型番未設定'}</p>
+                    <p className="text-2xs text-txt-muted truncate mt-0.5">{buildDescription(p)}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold text-txt-primary tabular-nums">¥{p.price.toLocaleString()}</p>
+                    <p className="text-2xs text-txt-muted mt-0.5">
+                      {new Date(p.created_at).toLocaleDateString('ja-JP')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <div data-testid="history-table" className="card">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    {['日付', 'ブランド', 'カテゴリ', '型番', '状態', '価格'].map(h => (
-                      <th key={h} className="text-left text-2xs font-medium text-txt-muted px-4 py-2.5 uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map(p => (
-                    <tr key={p.id}
-                      data-testid="history-row"
-                      data-product-id={p.id}
-                      className={`border-b border-border-subtle cursor-pointer transition-colors ${
-                        selectedId === p.id ? 'bg-accent-muted' : 'hover:bg-surface-3/50'
-                      }`}
-                      onClick={() => handleRowClick(p)}>
-                      <td className="px-4 py-2.5 text-xs text-txt-tertiary tabular-nums">
+            <div data-testid="history-grid" className="grid grid-cols-2 gap-3">
+              {products.map(p => (
+                <div
+                  key={p.id}
+                  data-testid="history-row"
+                  data-product-id={p.id}
+                  className={`card overflow-hidden cursor-pointer transition-all ${
+                    selectedId === p.id ? 'ring-2 ring-accent' : 'hover:ring-1 hover:ring-border-accent'
+                  }`}
+                  onClick={() => handleRowClick(p)}
+                >
+                  <ThumbnailImage path={p.thumbnail_path} size="lg" />
+                  <div className="p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-txt-primary truncate">{p.brand}</span>
+                      <span className="badge-info text-2xs">{p.category}</span>
+                    </div>
+                    <p className="text-xs text-txt-secondary truncate">{p.model || '型番未設定'}</p>
+                    <p className="text-2xs text-txt-muted truncate mt-0.5">{buildDescription(p)}</p>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border-subtle">
+                      <span className="text-2xs text-txt-muted">
                         {new Date(p.created_at).toLocaleDateString('ja-JP')}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs font-medium text-txt-primary">{p.brand}</td>
-                      <td className="px-4 py-2.5"><span className="badge-info">{p.category}</span></td>
-                      <td className="px-4 py-2.5 text-xs text-txt-secondary max-w-[200px] truncate">{p.model}</td>
-                      <td className="px-4 py-2.5 text-xs text-txt-tertiary">{p.condition}</td>
-                      <td className="px-4 py-2.5 text-xs font-medium text-txt-primary tabular-nums text-right">
+                      </span>
+                      <span className="text-sm font-semibold text-txt-primary tabular-nums">
                         ¥{p.price.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -208,28 +308,21 @@ export default function History(): JSX.Element {
               </div>
             ) : detail ? (
               <div data-testid="detail-content" className="space-y-4">
-                {detail.images.length > 0 && (
-                  <div className="space-y-2">
+                {detail.images.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
                     {detail.images.map(img => (
-                      <div key={img.id} className="relative rounded-lg overflow-hidden border border-border bg-surface-2">
+                      <div key={img.id} className="rounded-lg overflow-hidden border border-border bg-surface-2">
                         {detailImages[img.id] ? (
-                          <img src={detailImages[img.id]} alt={img.image_type} className="w-full h-40 object-cover" />
+                          <img src={detailImages[img.id]} alt="" className="w-full h-28 object-cover" />
                         ) : (
-                          <div className="w-full h-40 flex items-center justify-center bg-surface-3">
-                            <span className="text-2xs text-txt-muted">読み込み中...</span>
+                          <div className="w-full h-28 flex items-center justify-center bg-surface-3 animate-pulse">
+                            <span className="text-2xs text-txt-muted">...</span>
                           </div>
                         )}
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                          <span className="text-2xs text-white/80 font-medium">
-                            {IMAGE_TYPE_LABELS[img.image_type] || img.image_type}
-                          </span>
-                        </div>
                       </div>
                     ))}
                   </div>
-                )}
-
-                {detail.images.length === 0 && (
+                ) : (
                   <div className="rounded-lg border border-border bg-surface-2 h-32 flex items-center justify-center">
                     <span className="text-xs text-txt-muted">画像なし</span>
                   </div>

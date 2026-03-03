@@ -1,0 +1,206 @@
+[
+  {
+    "id": 1,
+    "mode": "cheap",
+    "input": "VALEXTRA\nS\nソフトカーフスキン\nヌード\nMADE IN JAPAN",
+    "brand": "VALEXTRA",
+    "size": null,
+    "material": [
+      "soft calfskin"
+    ],
+    "model": null,
+    "other_text": [
+      "S",
+      "ヌード",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.8,
+    "expectedBrand": "Valextra",
+    "brandMatch": true,
+    "expectedSize": "S",
+    "sizeMatch": false,
+    "durationMs": 1532
+  },
+  {
+    "id": 2,
+    "mode": "cheap",
+    "input": "URBAN RESEARCH\nM\nベージュ\nMADE IN JAPAN",
+    "brand": "URBAN RESEARCH",
+    "size": "M",
+    "material": null,
+    "model": null,
+    "other_text": [
+      "ベージュ",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.8,
+    "expectedBrand": "URBAN RESEARCH",
+    "brandMatch": true,
+    "expectedSize": "M",
+    "sizeMatch": true,
+    "durationMs": 1075
+  },
+  {
+    "id": 3,
+    "mode": "cheap",
+    "input": "VALEXTRA\nL\nソフトカーフスキン\nブラック\nMADE IN JAPAN",
+    "brand": "VALEXTRA",
+    "size": null,
+    "material": [
+      "soft calfskin"
+    ],
+    "model": null,
+    "other_text": [
+      "ブラック",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.8,
+    "expectedBrand": "Valextra",
+    "brandMatch": true,
+    "expectedSize": "L",
+    "sizeMatch": false,
+    "durationMs": 1602
+  },
+  {
+    "id": 4,
+    "mode": "cheap",
+    "input": "SALOMON\nXL\nBlack/Magnet\nMADE IN JAPAN",
+    "brand": "SALOMON",
+    "size": "XL",
+    "material": null,
+    "model": null,
+    "other_text": [
+      "Black/Magnet",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.9,
+    "expectedBrand": "SALOMON",
+    "brandMatch": true,
+    "expectedSize": "XL",
+    "sizeMatch": true,
+    "durationMs": 1061
+  },
+  {
+    "id": 5,
+    "mode": "cheap",
+    "input": "COCOSHNIK\n36\nK18 YG\nイエローゴールド(100)\nMADE IN JAPAN",
+    "brand": "COCOSHNIK",
+    "size": "36",
+    "material": [
+      "YELLOW GOLD"
+    ],
+    "model": "K18 YG",
+    "other_text": [
+      "イエローゴールド(100)",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.9,
+    "expectedBrand": "COCOSHNIK",
+    "brandMatch": true,
+    "expectedSize": "36",
+    "sizeMatch": true,
+    "durationMs": 1490
+  },
+  {
+    "id": 6,
+    "mode": "cheap",
+    "input": "VALEXTRA\n38\nダークグレー\n---\n%%%\n##\nMADE IN JAPAN",
+    "brand": "VALEXTRA",
+    "size": "38",
+    "material": null,
+    "model": null,
+    "other_text": [
+      "ダークグレー",
+      "%%%",
+      "##",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.8,
+    "expectedBrand": "Valextra",
+    "brandMatch": true,
+    "expectedSize": "38",
+    "sizeMatch": true,
+    "durationMs": 949
+  },
+  {
+    "id": 7,
+    "mode": "cheap",
+    "input": "RANAN\n40\nが新しい！より単品使いできる ”ブラック系”\nブラック\nMADE IN JAPAN",
+    "brand": null,
+    "size": "40",
+    "material": [
+      "black"
+    ],
+    "model": null,
+    "other_text": [
+      "RANAN",
+      "が新しい！より単品使いできる ”ブラック系”",
+      "ブラック",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.6,
+    "expectedBrand": "Ranan",
+    "brandMatch": false,
+    "expectedSize": "40",
+    "sizeMatch": true,
+    "durationMs": 2078
+  },
+  {
+    "id": 8,
+    "mode": "cheap",
+    "input": "SONNY LABEL\n42\nベージュ\nMADE IN JAPAN",
+    "brand": "SONNY LABEL",
+    "size": "42",
+    "material": null,
+    "model": null,
+    "other_text": [
+      "ベージュ",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.9,
+    "expectedBrand": "Sonny Label",
+    "brandMatch": true,
+    "expectedSize": "42",
+    "sizeMatch": true,
+    "durationMs": 1740
+  },
+  {
+    "id": 9,
+    "mode": "cheap",
+    "input": "SPICK & SPAN\nFREE\nコート\nMADE IN JAPAN",
+    "brand": "SPICK & SPAN",
+    "size": null,
+    "material": null,
+    "model": null,
+    "other_text": [
+      "FREE",
+      "コート",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.8,
+    "expectedBrand": "Spick & Span",
+    "brandMatch": true,
+    "expectedSize": "FREE",
+    "sizeMatch": false,
+    "durationMs": 933
+  },
+  {
+    "id": 10,
+    "mode": "cheap",
+    "input": "ADIDAS\nS\nホワイト\nMADE IN JAPAN",
+    "brand": "ADIDAS",
+    "size": "S",
+    "material": null,
+    "model": null,
+    "other_text": [
+      "ホワイト",
+      "MADE IN JAPAN"
+    ],
+    "confidence": 0.9,
+    "expectedBrand": "adidas",
+    "brandMatch": true,
+    "expectedSize": "S",
+    "sizeMatch": true,
+    "durationMs": 1631
+  }
+]

@@ -48,11 +48,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
  * products in the same category cluster closer together.
  */
 const CATEGORY_HUE: Record<string, { r: number; g: number; b: number }> = {
-  'バッグ': { r: -10, g: -5, b: 10 },
-  'ジャケット': { r: 5, g: -10, b: -5 },
-  'シューズ': { r: -5, g: 10, b: -10 },
-  'アクセサリー': { r: 10, g: 5, b: -5 },
-  '財布': { r: -5, g: -5, b: 5 }
+  'シャツ': { r: -10, g: -5, b: 10 },
+  'トップス': { r: 5, g: -10, b: -5 },
+  'ジャケット': { r: -5, g: 10, b: -10 },
+  'コート': { r: 10, g: 5, b: -5 },
+  'ワンピース': { r: -5, g: -5, b: 5 },
+  'スカート': { r: 8, g: -8, b: 3 },
+  'シューズ': { r: -8, g: 3, b: -8 }
 }
 
 /**

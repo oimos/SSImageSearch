@@ -6,10 +6,11 @@ import type {
   ImageType,
   UploadedImage,
   ProductFormData,
+  ProductImage,
   SearchResult,
   SearchFilter
 } from '@shared/types'
-import { IMAGE_TYPE_LABELS, BRANDS, CATEGORIES, CONDITIONS, COLORS, MATERIALS } from '@shared/types'
+import { BRANDS, CATEGORIES, CONDITIONS, COLORS, MATERIALS } from '@shared/types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
 const EMPTY_FORM: ProductFormData = {
@@ -45,6 +46,17 @@ export default function Workspace(): JSX.Element {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [filters, setFilters] = useState<SearchFilter>({ ...EMPTY_FILTER })
   const [showFilters, setShowFilters] = useState(false)
+
+  const [zoomedImageIdx, setZoomedImageIdx] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (zoomedImageIdx === null) return
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setZoomedImageIdx(null)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [zoomedImageIdx])
 
   const hasImagesRef = useRef(false)
   const dropRef = useRef<HTMLDivElement>(null)
@@ -322,16 +334,37 @@ export default function Workspace(): JSX.Element {
                 <div
                   key={i}
                   data-testid="image-preview"
-                  className="relative group rounded-lg overflow-hidden border border-border bg-surface-2"
+                  className="relative group rounded-lg overflow-hidden border border-border bg-surface-2 cursor-pointer"
+                  onClick={() => setZoomedImageIdx(zoomedImageIdx === i ? null : i)}
                 >
                   <img src={img.data} alt={img.name} className="w-full h-28 object-cover" />
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                    <span className="text-2xs text-white/80 font-medium">
-                      {IMAGE_TYPE_LABELS[img.type]}
-                    </span>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                    </svg>
                   </div>
                 </div>
               ))}
+              {zoomedImageIdx !== null && uploadedImages[zoomedImageIdx] && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center cursor-pointer"
+                  onClick={() => setZoomedImageIdx(null)}
+                >
+                  <img
+                    src={uploadedImages[zoomedImageIdx].data}
+                    className="max-w-[85vw] max-h-[85vh] object-contain rounded-xl shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                    onClick={() => setZoomedImageIdx(null)}
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <button
                 data-testid="clear-images-btn"
                 onClick={handleReset}
@@ -347,8 +380,8 @@ export default function Workspace(): JSX.Element {
       {/* === CENTER PANE: Candidates === */}
       <div className="pane flex-1 bg-surface-0">
         <div className="pane-header">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-txt-secondary uppercase tracking-wider">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-semibold text-txt-secondary uppercase tracking-wider shrink-0">
               {phase === 'idle'
                 ? '候補'
                 : phase === 'searching'
@@ -356,12 +389,12 @@ export default function Workspace(): JSX.Element {
                   : `候補 (${searchResults.length}件)`}
             </span>
             {activeFilterCount > 0 && (
-              <span className="text-2xs bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-2xs bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-medium shrink-0">
                 {activeFilterCount}件の絞り込み
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             {phase === 'results' && searchResults.length > 0 && (
               <span className="text-2xs text-txt-muted mr-2">
                 数字キー 1-{Math.min(searchResults.length, 9)} で選択
@@ -856,7 +889,7 @@ export default function Workspace(): JSX.Element {
               </svg>
             )}
             {saving ? '保存中...' : '保存'}
-            {!saving && <span className="kbd text-white/50 border-white/20 ml-1">⌘S</span>}
+            {!saving && <span className="kbd bg-white/20 text-white border-white/30 ml-1">⌘S</span>}
           </button>
           {hasForm && (
             <button
@@ -982,6 +1015,7 @@ function CandidateRow({
           </div>
         </div>
       </div>
+      {selected && result.images.length > 1 && <ImageStrip images={result.images} />}
     </div>
   )
 }
@@ -1070,6 +1104,129 @@ function CandidateCard({
             <span className="text-2xs text-txt-muted truncate ml-1">{product.color}</span>
           )}
         </div>
+        {selected && result.images.length > 1 && (
+          <ImageStripMini images={result.images} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ImageStripMini({ images }: { images: ProductImage[] }): JSX.Element | null {
+  const [thumbs, setThumbs] = useState<Map<number, string>>(new Map())
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    images.forEach((img) => {
+      window.api.readImage(img.image_path).then((d) => {
+        if (d && !cancelled) {
+          setThumbs((prev) => new Map(prev).set(img.id, d))
+        }
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [images])
+
+  if (images.length <= 1) return null
+
+  const expandedSrc = expandedId !== null ? thumbs.get(expandedId) : null
+
+  return (
+    <div className="pt-2 mt-2 border-t border-border/50">
+      {expandedSrc && (
+        <div className="mb-2">
+          <img
+            src={expandedSrc}
+            className="max-h-36 rounded-md object-contain cursor-pointer"
+            onClick={() => setExpandedId(null)}
+          />
+        </div>
+      )}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {images.map((img) => {
+          const src = thumbs.get(img.id)
+          const isActive = expandedId === img.id
+          return (
+            <div
+              key={img.id}
+              className={`w-12 h-12 rounded-md bg-surface-3 shrink-0 overflow-hidden cursor-pointer ring-2 transition-all ${
+                isActive ? 'ring-accent' : 'ring-transparent hover:ring-border-accent'
+              }`}
+              onClick={() => setExpandedId(isActive ? null : img.id)}
+            >
+              {src ? (
+                <img src={src} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-txt-muted text-2xs animate-pulse">
+                  ...
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ImageStrip({ images }: { images: ProductImage[] }): JSX.Element | null {
+  const [thumbs, setThumbs] = useState<Map<number, string>>(new Map())
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    images.forEach((img) => {
+      window.api.readImage(img.image_path).then((d) => {
+        if (d && !cancelled) {
+          setThumbs((prev) => new Map(prev).set(img.id, d))
+        }
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [images])
+
+  if (images.length <= 1) return null
+
+  const expandedSrc = expandedId !== null ? thumbs.get(expandedId) : null
+
+  return (
+    <div className="pt-2 mt-2 border-t border-border/50">
+      {expandedSrc && (
+        <div className="mb-2">
+          <img
+            src={expandedSrc}
+            className="max-h-48 rounded-lg object-contain cursor-pointer"
+            onClick={() => setExpandedId(null)}
+          />
+        </div>
+      )}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {images.map((img) => {
+          const src = thumbs.get(img.id)
+          const isActive = expandedId === img.id
+          return (
+            <div
+              key={img.id}
+              className={`w-20 h-20 rounded-lg bg-surface-3 shrink-0 overflow-hidden cursor-pointer ring-2 transition-all ${
+                isActive ? 'ring-accent' : 'ring-transparent hover:ring-border-accent'
+              }`}
+              onClick={() => setExpandedId(isActive ? null : img.id)}
+            >
+              {src ? (
+                <img src={src} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-txt-muted text-2xs animate-pulse">
+                  ...
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

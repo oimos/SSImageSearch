@@ -1,7 +1,9 @@
 import { getDatabase } from '../db/connection'
 import type { Product, ProductImage, ProductFilter, ProductFormData } from '@shared/types'
 
-export function getProducts(filter?: ProductFilter): { products: Product[]; total: number } {
+export function getProducts(
+  filter?: ProductFilter
+): { products: (Product & { thumbnail_path?: string })[]; total: number } {
   const db = getDatabase()
   const conditions: string[] = []
   const params: Record<string, string | number> = {}
@@ -23,8 +25,15 @@ export function getProducts(filter?: ProductFilter): { products: Product[]; tota
     cnt: number
   }
   const products = db
-    .prepare(`SELECT * FROM products ${where} ORDER BY created_at DESC LIMIT @limit OFFSET @offset`)
-    .all({ ...params, limit, offset }) as Product[]
+    .prepare(
+      `SELECT p.*, (
+        SELECT pi.image_path FROM product_images pi
+        WHERE pi.product_id = p.id ORDER BY pi.order_index LIMIT 1
+      ) AS thumbnail_path
+      FROM products p ${where}
+      ORDER BY p.created_at DESC LIMIT @limit OFFSET @offset`
+    )
+    .all({ ...params, limit, offset }) as (Product & { thumbnail_path?: string })[]
 
   return { products, total: total.cnt }
 }
