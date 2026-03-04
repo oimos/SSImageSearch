@@ -31,7 +31,26 @@ const api = {
   getAllVectors: () => ipcRenderer.invoke('db:get-all-vectors'),
 
   normalizeOcr: (rawOcrText: string, options?: OcrNormalizeOptions) =>
-    ipcRenderer.invoke('ocr:normalize', rawOcrText, options)
+    ipcRenderer.invoke('ocr:normalize', rawOcrText, options),
+
+  extractCLIP: (imageBase64: string) =>
+    ipcRenderer.invoke('clip:extract', imageBase64),
+
+  clipStatus: () => ipcRenderer.invoke('clip:status'),
+
+  searchHybrid: (
+    v2Vector: number[] | null,
+    clipVector: number[] | null,
+    limit?: number,
+    filters?: SearchFilter
+  ) => ipcRenderer.invoke('db:search-hybrid', v2Vector, clipVector, limit, filters),
+
+  searchHybridBatch: (
+    v2Vectors: number[][],
+    clipVectors: (number[] | null)[],
+    limit?: number,
+    filters?: SearchFilter
+  ) => ipcRenderer.invoke('db:search-hybrid-batch', v2Vectors, clipVectors, limit, filters)
 }
 
 contextBridge.exposeInMainWorld('api', api)

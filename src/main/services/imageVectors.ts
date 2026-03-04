@@ -1,26 +1,22 @@
 import sharp from 'sharp'
+import { extractFeaturesV2FromPixels, GRID_V2, FEATURE_DIM_V2 } from '@shared/featureExtraction'
 
-const GRID = 13
-const VECTOR_DIM = 512
+// ---------------------------------------------------------------------------
+// V1 — legacy 512-dim pixel grid (kept for backward compat during migration)
+// ---------------------------------------------------------------------------
 
-function normalize(vec: number[]): number[] {
+const GRID_V1 = 13
+const VECTOR_DIM_V1 = 512
+
+function normalizeVec(vec: number[]): number[] {
   const norm = Math.sqrt(vec.reduce((s, x) => s + x * x, 0))
   if (norm === 0) return vec
   return vec.map((x) => x / norm)
 }
 
-/**
- * Extract a 512-dim pixel feature vector from an image file using sharp.
- * Exactly mirrors the renderer's extractPixelFeatures (OffscreenCanvas)
- * so that cosine similarity between seed vectors and uploaded-image vectors
- * is meaningful.
- *
- * Layout: [0..506] 13x13 grid x 3 RGB channels, [507..509] mean RGB,
- *         [510] std R, [511] std G
- */
 export async function extractPixelFeaturesFromFile(filePath: string): Promise<number[]> {
   const { data } = await sharp(filePath)
-    .resize(GRID, GRID, { fit: 'fill' })
+    .resize(GRID_V1, GRID_V1, { fit: 'fill' })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
@@ -29,7 +25,7 @@ export async function extractPixelFeaturesFromFile(filePath: string): Promise<nu
   let sumR = 0,
     sumG = 0,
     sumB = 0
-  const n = GRID * GRID
+  const n = GRID_V1 * GRID_V1
 
   for (let i = 0; i < n; i++) {
     const r = data[i * 3] / 128 - 1
@@ -54,9 +50,25 @@ export async function extractPixelFeaturesFromFile(filePath: string): Promise<nu
   }
   features.push(Math.sqrt(varR / n), Math.sqrt(varG / n))
 
-  if (features.length !== VECTOR_DIM) {
-    throw new Error(`Vector dim mismatch: expected ${VECTOR_DIM}, got ${features.length}`)
+  if (features.length !== VECTOR_DIM_V1) {
+    throw new Error(`Vector dim mismatch: expected ${VECTOR_DIM_V1}, got ${features.length}`)
   }
 
-  return normalize(features)
+  return normalizeVec(features)
+}
+
+// ---------------------------------------------------------------------------
+// V2 — 768-dim multi-feature embedding (color + HSV + HOG + edge + LBP)
+// ---------------------------------------------------------------------------
+
+export { FEATURE_DIM_V2 }
+
+export async function extractFeaturesV2FromFile(filePath: string): Promise<number[]> {
+  const { data } = await sharp(filePath)
+    .resize(GRID_V2, GRID_V2, { fit: 'cover' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  return extractFeaturesV2FromPixels(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
 }

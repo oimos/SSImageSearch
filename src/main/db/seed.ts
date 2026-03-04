@@ -3,7 +3,8 @@ import path from 'path'
 import fs from 'fs'
 import { getDatabase } from './connection'
 import { vectorToBuffer, hashString } from '@shared/vectors'
-import { extractPixelFeaturesFromFile } from '../services/imageVectors'
+import { FEATURE_DIM_V2 } from '@shared/featureExtraction'
+import { extractFeaturesV2FromFile } from '../services/imageVectors'
 
 interface RawSeedItem {
   商品名: string
@@ -129,7 +130,7 @@ function generateDemoPrice(brand: string, category: string, seed: number): numbe
   return Math.round((min + base * (max - min)) / 10) * 10
 }
 
-const SEED_MODEL = 'pixel-v1'
+const SEED_MODEL = 'features-v2'
 
 interface PreparedImage {
   productIdx: number
@@ -151,26 +152,25 @@ export async function seedDatabase(): Promise<void> {
   db.prepare('DELETE FROM product_images').run()
   db.prepare('DELETE FROM products').run()
 
-  const seedDataPath = path.join(app.getAppPath(), 'seed-data', '2ndstreet_products.json')
-  let rawItems: RawSeedItem[]
+  const candidatePaths = [
+    path.join(process.resourcesPath ?? '', 'seed-data', '2ndstreet_products.json'),
+    path.join(app.getAppPath(), 'seed-data', '2ndstreet_products.json'),
+    path.join(process.cwd(), 'seed-data', '2ndstreet_products.json')
+  ]
 
-  if (fs.existsSync(seedDataPath)) {
-    rawItems = JSON.parse(fs.readFileSync(seedDataPath, 'utf-8'))
-  } else {
-    const devPath = path.join(process.cwd(), 'seed-data', '2ndstreet_products.json')
-    if (!fs.existsSync(devPath)) {
-      console.warn('Seed data not found, skipping seed.')
-      return
-    }
-    rawItems = JSON.parse(fs.readFileSync(devPath, 'utf-8'))
+  const seedDataPath = candidatePaths.find((p) => fs.existsSync(p))
+  if (!seedDataPath) {
+    console.warn('Seed data not found, skipping seed.')
+    return
   }
+
+  const rawItems: RawSeedItem[] = JSON.parse(fs.readFileSync(seedDataPath, 'utf-8'))
 
   const imagesDir = path.join(app.getPath('userData'), 'images')
   fs.mkdirSync(imagesDir, { recursive: true })
 
-  const seedImagesBase = fs.existsSync(path.join(app.getAppPath(), 'seed-data', 'images'))
-    ? path.join(app.getAppPath(), 'seed-data', 'images')
-    : path.join(process.cwd(), 'seed-data', 'images')
+  const seedImagesDir = path.dirname(seedDataPath)
+  const seedImagesBase = path.join(seedImagesDir, 'images')
 
   console.log('Generating pixel-based vectors from seed images...')
   const prepared: PreparedImage[][] = []
@@ -196,9 +196,9 @@ export async function seedDatabase(): Promise<void> {
 
       let vector: number[]
       try {
-        vector = await extractPixelFeaturesFromFile(destPath)
+        vector = await extractFeaturesV2FromFile(destPath)
       } catch {
-        vector = new Array(512).fill(0)
+        vector = new Array(FEATURE_DIM_V2).fill(0)
       }
 
       images.push({ productIdx: i, imageIdx: j, destPath, vector })

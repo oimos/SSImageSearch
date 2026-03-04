@@ -1,13 +1,16 @@
 export const VECTOR_DIM = 512
+export { FEATURE_DIM_V2 } from './featureExtraction'
 
 /**
- * Feature layout (must match renderer/lib/embedding.ts):
+ * V1 feature layout (legacy — 13×13 pixel grid):
  *   [0..506]  13×13 pixel grid, 3 channels each (R, G, B normalized to [-1,1])
  *   [507]     mean R
  *   [508]     mean G
  *   [509]     mean B
  *   [510]     std R  (contrast)
  *   [511]     std G  (contrast)
+ *
+ * V2 feature layout (768-dim) — see src/shared/featureExtraction.ts
  */
 
 const GRID = 13

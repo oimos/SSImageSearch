@@ -8,6 +8,8 @@ import { registerProductHandlers } from './ipc/product'
 import { registerImageHandlers } from './ipc/image'
 import { registerSearchHandlers } from './ipc/search'
 import { registerOcrHandlers } from './ipc/ocr'
+import { registerCLIPHandlers, startCLIPLoading } from './ipc/clip'
+import { indexMissingCLIPVectors } from './services/clipIndexer'
 
 if (process.env.E2E_USER_DATA) {
   app.setPath('userData', process.env.E2E_USER_DATA)
@@ -48,8 +50,15 @@ app.whenReady().then(async () => {
   registerImageHandlers()
   registerSearchHandlers()
   registerOcrHandlers()
+  registerCLIPHandlers()
 
   createWindow()
+
+  startCLIPLoading().then(() => {
+    indexMissingCLIPVectors().catch((err) =>
+      console.error('[CLIP Indexer] Background indexing failed:', err)
+    )
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

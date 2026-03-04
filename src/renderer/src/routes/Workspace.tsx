@@ -937,7 +937,7 @@ function CandidateRow({
   selected: boolean
   onSelect: () => void
 }): JSX.Element {
-  const { product, similarity, matchReasons } = result
+  const { product, similarity, matchReasons, confidence } = result
   const [thumb, setThumb] = useState<string | null>(null)
 
   useEffect(() => {
@@ -990,20 +990,16 @@ function CandidateRow({
             <span data-testid="candidate-category" className="badge-info shrink-0">
               {product.category}
             </span>
+            <ConfidenceBadge confidence={similarity} level={confidence} />
           </div>
           <p className="text-xs text-txt-secondary truncate mb-1.5">{product.model}</p>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${pct >= 70 ? 'bg-emerald-400' : pct >= 50 ? 'bg-amber-400' : pct > 0 ? 'bg-red-400' : 'bg-surface-4'}`}
-              />
-              <span
-                data-testid="candidate-score"
-                className="text-2xs text-txt-tertiary tabular-nums"
-              >
-                {pct > 0 ? `${pct}%` : '属性一致'}
-              </span>
-            </div>
+            <span
+              data-testid="candidate-score"
+              className="text-2xs text-txt-tertiary tabular-nums"
+            >
+              {pct > 0 ? `類似度 ${pct}%` : '属性一致'}
+            </span>
             {matchReasons.slice(0, 2).map((r, i) => (
               <span key={i} className="text-2xs text-txt-muted">
                 {r}
@@ -1031,7 +1027,7 @@ function CandidateCard({
   selected: boolean
   onSelect: () => void
 }): JSX.Element {
-  const { product, similarity } = result
+  const { product, similarity, confidence } = result
   const [thumb, setThumb] = useState<string | null>(null)
 
   useEffect(() => {
@@ -1071,24 +1067,9 @@ function CandidateCard({
         >
           {index + 1}
         </span>
-        {pct > 0 && (
-          <span
-            className={`absolute top-2 right-2 text-2xs font-bold px-1.5 py-0.5 rounded-md ${
-              pct >= 70
-                ? 'bg-emerald-500/80 text-white'
-                : pct >= 50
-                  ? 'bg-amber-500/80 text-white'
-                  : 'bg-red-500/80 text-white'
-            }`}
-          >
-            {pct}%
-          </span>
-        )}
-        {pct === 0 && (
-          <span className="absolute top-2 right-2 text-2xs font-bold px-1.5 py-0.5 rounded-md bg-surface-4/80 text-txt-secondary">
-            属性一致
-          </span>
-        )}
+        <span className="absolute top-2 right-2">
+          <ConfidenceBadge confidence={similarity} level={confidence} />
+        </span>
       </div>
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 mb-1">

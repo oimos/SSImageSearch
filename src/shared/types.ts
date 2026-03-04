@@ -31,11 +31,28 @@ export interface ImageVector {
   created_at: string
 }
 
+export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'weak'
+
 export interface SearchResult {
   product: Product
   images: ProductImage[]
   similarity: number
   matchReasons: string[]
+  confidence: ConfidenceLevel
+}
+
+export function getConfidenceLevel(similarity: number): ConfidenceLevel {
+  if (similarity >= 0.85) return 'high'
+  if (similarity >= 0.70) return 'medium'
+  if (similarity >= 0.50) return 'low'
+  return 'weak'
+}
+
+export const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> = {
+  high: 'ほぼ確実な一致',
+  medium: '類似商品',
+  low: '参考候補',
+  weak: '低確度'
 }
 
 export interface ProductFormData {

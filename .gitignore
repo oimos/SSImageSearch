@@ -11,3 +11,4 @@ blob-report/
 .env.local
 seed-data/images/
 rakuten_test/images/
+release/

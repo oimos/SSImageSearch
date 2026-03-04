@@ -8,13 +8,54 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "postinstall": "electron-rebuild",
+    "dist": "electron-vite build && electron-builder --mac",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report test-results/html-report"
   },
+  "build": {
+    "appId": "com.ssimagesearch.app",
+    "productName": "SS Image Search",
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-mac-arm64.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "seed-data",
+        "to": "seed-data",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "out/**/*",
+      "!node_modules/**/*.{md,ts,map}",
+      "!node_modules/**/{test,tests,__tests__}/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ]
+  },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "better-sqlite3": "^11.0.0",
     "dotenv": "^17.3.1",
     "openai": "^6.25.0",
@@ -34,6 +75,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
     "electron": "^33.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
