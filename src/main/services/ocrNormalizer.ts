@@ -1,5 +1,27 @@
 import type { OcrNormalizedResult, OcrNormalizeOptions, OcrDebugPayload } from '@shared/types'
-import { callLlm, isDebugLlm } from './llmClient'
+import { callLlm, callVision, isDebugLlm } from './llmClient'
+
+const VISION_SYSTEM_PROMPT = `You are an AI assistant that analyzes images of second-hand apparel products.
+Look at the image and extract the following information into JSON.
+
+Rules:
+- Identify the brand from logos, tags, or text visible in the image.
+- Determine the product category (e.g. シャツ, トップス, ジャケット, コート, ワンピース, スカート, シューズ).
+- Extract size, color, and material if visible.
+- If a field cannot be determined, set it to null.
+- "material" is always an array of strings, or null if absent.
+- "confidence" is 0.0–1.0: high when information is clear, low when guessing.
+
+Output ONLY valid JSON matching this exact schema — no markdown, no explanation:
+{
+  "brand": string | null,
+  "size": string | null,
+  "material": string[] | null,
+  "model": string | null,
+  "category": string | null,
+  "other_text": string[],
+  "confidence": number
+}`
 
 const SYSTEM_PROMPT = `You are a structured data extractor for second-hand apparel product tags.
 Given raw OCR text from a clothing/accessory tag, extract and normalize the following fields into JSON.
@@ -126,4 +148,63 @@ export async function normalizeOcrText(
   }
 
   return parsed
+}
+
+export interface ImageAnalysisResult {
+  brand: string | null
+  category: string | null
+  size: string | null
+  material: string[] | null
+  model: string | null
+  other_text: string[]
+  confidence: number
+}
+
+const EMPTY_ANALYSIS: ImageAnalysisResult = {
+  brand: null,
+  category: null,
+  size: null,
+  material: null,
+  model: null,
+  other_text: [],
+  confidence: 0
+}
+
+export async function extractInfoFromImage(imageBase64: string): Promise<ImageAnalysisResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('[extractInfoFromImage] OPENAI_API_KEY not set, skipping vision analysis')
+    return { ...EMPTY_ANALYSIS }
+  }
+
+  try {
+    const res = await callVision({
+      systemPrompt: VISION_SYSTEM_PROMPT,
+      imageBase64,
+      userPrompt: 'この画像に写っているアパレル商品の情報を抽出してください。',
+      temperature: 0,
+      maxTokens: 512
+    })
+
+    const jsonObj = extractJson(res.content)
+    const validated = validateAndCoerce(jsonObj)
+
+    const obj = jsonObj as Record<string, unknown>
+    const category = typeof obj.category === 'string' ? obj.category : null
+
+    return {
+      brand: validated.brand,
+      category,
+      size: validated.size,
+      material: validated.material,
+      model: validated.model,
+      other_text: validated.other_text,
+      confidence: validated.confidence
+    }
+  } catch (err) {
+    console.error(
+      '[extractInfoFromImage] Vision analysis failed:',
+      err instanceof Error ? err.message : err
+    )
+    return { ...EMPTY_ANALYSIS }
+  }
 }

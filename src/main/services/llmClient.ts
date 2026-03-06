@@ -78,6 +78,57 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
   }
 }
 
+export interface VisionRequest {
+  systemPrompt: string
+  imageBase64: string
+  userPrompt?: string
+  temperature?: number
+  maxTokens?: number
+}
+
+export async function callVision(request: VisionRequest): Promise<LlmResponse> {
+  const mode = resolveLlmMode()
+
+  if (mode === 'mock') {
+    return callMockLlm({ systemPrompt: request.systemPrompt, userPrompt: request.userPrompt ?? '' })
+  }
+
+  const client = getClient()
+
+  const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+    {
+      type: 'image_url',
+      image_url: { url: request.imageBase64 }
+    }
+  ]
+  if (request.userPrompt) {
+    userContent.push({ type: 'text', text: request.userPrompt })
+  }
+
+  const completion = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    temperature: request.temperature ?? 0,
+    max_tokens: request.maxTokens ?? 512,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: request.systemPrompt },
+      { role: 'user', content: userContent as never }
+    ]
+  })
+
+  const choice = completion.choices[0]
+  return {
+    content: choice?.message?.content ?? '',
+    model: completion.model,
+    usage: completion.usage
+      ? {
+          promptTokens: completion.usage.prompt_tokens,
+          completionTokens: completion.usage.completion_tokens
+        }
+      : undefined
+  }
+}
+
 /**
  * Deterministic mock for offline / testing.
  * Parses the OCR text with simple heuristics so tests can run without an API key.

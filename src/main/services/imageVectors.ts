@@ -72,3 +72,13 @@ export async function extractFeaturesV2FromFile(filePath: string): Promise<numbe
 
   return extractFeaturesV2FromPixels(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
 }
+
+export async function extractFeaturesV2FromBuffer(buffer: Buffer): Promise<number[]> {
+  const { data } = await sharp(buffer)
+    .resize(GRID_V2, GRID_V2, { fit: 'cover' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  return extractFeaturesV2FromPixels(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
+}
