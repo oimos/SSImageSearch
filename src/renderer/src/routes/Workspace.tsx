@@ -12,6 +12,8 @@ import type {
 } from '@shared/types'
 import { BRANDS, CATEGORIES, CONDITIONS, COLORS, MATERIALS } from '@shared/types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
+import TagRegionSelector from '../components/TagRegionSelector'
+import type { OcrExtractResult } from '../components/TagRegionSelector'
 
 const EMPTY_FORM: ProductFormData = {
   brand: '',
@@ -252,6 +254,41 @@ export default function Workspace(): JSX.Element {
     [filters, searchByImages, applyTagDrivenScoring, setUploadedImages, applyResults]
   )
 
+  const handleManualOcrResult = useCallback(
+    async (result: OcrExtractResult) => {
+      if (!result || (!result.brand && !result.category && !result.model)) return
+
+      const detectedParts = [
+        result.model ? `型番: ${result.model}` : null,
+        result.brand,
+        result.category
+      ].filter(Boolean)
+      setOcrStatus(`手動タグ検出: ${detectedParts.join(' / ')}`)
+
+      const ocrFields: OcrFields = {
+        brand: result.brand ?? null,
+        category: result.category ?? null,
+        model: result.model ?? null,
+        size: result.size ?? null,
+        material: result.material ?? null
+      }
+
+      console.log('[handleManualOcrResult] applying manual OCR:', ocrFields)
+
+      const currentResults = searchResults
+      if (currentResults.length > 0) {
+        const { results: scoredResults } = await applyTagDrivenScoring(
+          currentResults,
+          ocrFields,
+          true
+        )
+        console.log('[handleManualOcrResult] re-scored results:', scoredResults.slice(0, 3).map(r => ({ id: r.product.id, brand: r.product.brand, sim: r.similarity, source: r.matchSource })))
+        applyResults(scoredResults, true, false)
+      }
+    },
+    [searchResults, applyTagDrivenScoring, applyResults]
+  )
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
@@ -479,24 +516,14 @@ export default function Workspace(): JSX.Element {
                 </div>
               ))}
               {zoomedImageIdx !== null && uploadedImages[zoomedImageIdx] && (
-                <div
-                  className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center cursor-pointer"
-                  onClick={() => setZoomedImageIdx(null)}
-                >
-                  <img
-                    src={uploadedImages[zoomedImageIdx].data}
-                    className="max-w-[85vw] max-h-[85vh] object-contain rounded-xl shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <button
-                    className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-                    onClick={() => setZoomedImageIdx(null)}
-                  >
-                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+                <TagRegionSelector
+                  imageSrc={uploadedImages[zoomedImageIdx].data}
+                  onClose={() => setZoomedImageIdx(null)}
+                  onOcrResult={(result: OcrExtractResult) => {
+                    setZoomedImageIdx(null)
+                    handleManualOcrResult(result)
+                  }}
+                />
               )}
               <button
                 data-testid="clear-images-btn"
