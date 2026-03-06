@@ -170,6 +170,57 @@ const EMPTY_ANALYSIS: ImageAnalysisResult = {
   confidence: 0
 }
 
+// --- Image Type Classification ---
+
+export interface ImageClassifyResult {
+  image_type: 'tag' | 'full' | 'logo' | 'detail' | 'other'
+  confidence: number
+}
+
+const CLASSIFY_SYSTEM_PROMPT = `You are an image classifier for second-hand apparel product photos.
+Classify this image into ONE of these categories:
+- "tag": A product tag, label, care label, or price tag (contains printed text like brand name, size, material, model number)
+- "full": A full product photo showing the entire item
+- "logo": A close-up of a brand logo or emblem
+- "detail": A close-up of fabric texture, stitching, hardware, or specific detail
+- "other": None of the above
+
+Output ONLY valid JSON: {"image_type": "tag"|"full"|"logo"|"detail"|"other", "confidence": 0.0-1.0}`
+
+const DEFAULT_CLASSIFY: ImageClassifyResult = { image_type: 'other', confidence: 0 }
+
+export async function classifyImageType(imageBase64: string): Promise<ImageClassifyResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { ...DEFAULT_CLASSIFY }
+  }
+
+  try {
+    const res = await callVision({
+      systemPrompt: CLASSIFY_SYSTEM_PROMPT,
+      imageBase64,
+      temperature: 0,
+      maxTokens: 50
+    })
+
+    const obj = extractJson(res.content) as Record<string, unknown>
+    const imageType = typeof obj.image_type === 'string' ? obj.image_type : 'other'
+    const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(1, obj.confidence)) : 0
+
+    const validTypes = ['tag', 'full', 'logo', 'detail', 'other'] as const
+    const resolvedType = validTypes.includes(imageType as (typeof validTypes)[number])
+      ? (imageType as ImageClassifyResult['image_type'])
+      : 'other'
+
+    return { image_type: resolvedType, confidence }
+  } catch (err) {
+    console.error(
+      '[classifyImageType] Classification failed:',
+      err instanceof Error ? err.message : err
+    )
+    return { ...DEFAULT_CLASSIFY }
+  }
+}
+
 export async function extractInfoFromImage(imageBase64: string): Promise<ImageAnalysisResult> {
   if (!process.env.OPENAI_API_KEY) {
     console.warn('[extractInfoFromImage] OPENAI_API_KEY not set, skipping vision analysis')

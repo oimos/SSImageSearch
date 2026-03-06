@@ -2,8 +2,8 @@ import { useState, useCallback, useRef } from 'react'
 import type { SearchResult, SearchFilter } from '@shared/types'
 import { generateVectors, fileToBase64 } from '../lib/embedding'
 import type { VectorsResult } from '../lib/embedding'
-import { boostResultsWithText } from '../lib/textSimilarity'
-import type { OcrFields } from '../lib/textSimilarity'
+import { boostResultsWithText, mergeModelResults, detectConflict } from '../lib/textSimilarity'
+import type { OcrFields, ConflictInfo } from '../lib/textSimilarity'
 
 interface CachedQuery {
   vectorPairs: VectorsResult[]
@@ -15,6 +15,7 @@ export function useSearch() {
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<SearchResult[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null)
 
   const cached = useRef<CachedQuery>({ vectorPairs: [], base64s: [] })
   const cachedOcr = useRef<OcrFields | null>(null)
@@ -46,6 +47,7 @@ export function useSearch() {
       setProgress(0)
       setError(null)
       setResults([])
+      setConflict(null)
 
       try {
         const validFiles = files.filter((f) => f.size > 0)
@@ -162,12 +164,42 @@ export function useSearch() {
     []
   )
 
-  const applyTextBoost = useCallback(
-    (searchResults: SearchResult[], ocr: OcrFields | null): SearchResult[] => {
+  /**
+   * Apply the 3-layer tag-driven scoring pipeline:
+   *  Layer 1: model shortcut via db:search-by-model (if OCR extracted a model)
+   *  Layer 2: tag-driven text boost (visual 0.2 + text 0.8) when hasTag
+   *  Layer 3: default text boost (visual 0.6 + text 0.4) fallback
+   */
+  const applyTagDrivenScoring = useCallback(
+    async (
+      visualResults: SearchResult[],
+      ocr: OcrFields | null,
+      hasTag: boolean
+    ): Promise<{ results: SearchResult[]; conflict: ConflictInfo | null }> => {
       cachedOcr.current = ocr
-      const boosted = boostResultsWithText(searchResults, ocr)
-      setResults(boosted)
-      return boosted
+      let finalResults = visualResults
+
+      // Layer 1: model shortcut
+      if (hasTag && ocr?.model && ocr.model.trim()) {
+        try {
+          const modelResults: SearchResult[] = await window.api.searchByModel(ocr.model, 5)
+          if (modelResults.length > 0) {
+            finalResults = mergeModelResults(modelResults, visualResults)
+          }
+        } catch {
+          // Model search failed, continue with visual results
+        }
+      }
+
+      // Layer 2 or 3: text boost with appropriate weights
+      finalResults = boostResultsWithText(finalResults, ocr, { hasTag })
+
+      // Conflict detection
+      const conflictInfo = detectConflict(visualResults, finalResults)
+      setConflict(conflictInfo)
+      setResults(finalResults)
+
+      return { results: finalResults, conflict: conflictInfo }
     },
     []
   )
@@ -175,6 +207,7 @@ export function useSearch() {
   const clearCache = useCallback(() => {
     cached.current = { vectorPairs: [], base64s: [] }
     cachedOcr.current = null
+    setConflict(null)
   }, [])
 
   return {
@@ -182,11 +215,12 @@ export function useSearch() {
     progress,
     results,
     error,
+    conflict,
     searchByImages,
     reSearchWithFilters,
     searchByFilters,
     searchByProductImages,
-    applyTextBoost,
+    applyTagDrivenScoring,
     clearCache,
     hasEmbeddings: cached.current.vectorPairs.length > 0
   }

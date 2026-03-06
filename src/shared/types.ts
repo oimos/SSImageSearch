@@ -31,7 +31,9 @@ export interface ImageVector {
   created_at: string
 }
 
-export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'weak'
+export type ConfidenceLevel = 'exact' | 'high' | 'medium' | 'low' | 'weak'
+
+export type MatchSource = 'model_exact' | 'model_prefix' | 'tag_text' | 'visual' | 'filter_only'
 
 export interface SearchResult {
   product: Product
@@ -39,9 +41,12 @@ export interface SearchResult {
   similarity: number
   matchReasons: string[]
   confidence: ConfidenceLevel
+  matchSource: MatchSource
 }
 
-export function getConfidenceLevel(similarity: number): ConfidenceLevel {
+export function getConfidenceLevel(similarity: number, matchSource?: MatchSource): ConfidenceLevel {
+  if (matchSource === 'model_exact') return 'exact'
+  if (matchSource === 'model_prefix') return 'high'
   if (similarity >= 0.85) return 'high'
   if (similarity >= 0.70) return 'medium'
   if (similarity >= 0.50) return 'low'
@@ -49,6 +54,7 @@ export function getConfidenceLevel(similarity: number): ConfidenceLevel {
 }
 
 export const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> = {
+  exact: '型番一致',
   high: 'ほぼ確実な一致',
   medium: '類似商品',
   low: '参考候補',

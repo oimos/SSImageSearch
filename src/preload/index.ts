@@ -56,7 +56,13 @@ const api = {
   clipStatus: () => ipcRenderer.invoke('clip:status'),
 
   extractFromImage: (imageBase64: string) =>
-    ipcRenderer.invoke('ocr:extract-from-image', imageBase64)
+    ipcRenderer.invoke('ocr:extract-from-image', imageBase64),
+
+  classifyImageType: (imageBase64: string) =>
+    ipcRenderer.invoke('image:classify-type', imageBase64),
+
+  searchByModel: (ocrModel: string, limit?: number) =>
+    ipcRenderer.invoke('db:search-by-model', ocrModel, limit)
 }
 
 contextBridge.exposeInMainWorld('api', api)

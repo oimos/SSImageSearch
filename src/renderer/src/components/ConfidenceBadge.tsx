@@ -8,6 +8,7 @@ interface ConfidenceBadgeProps {
 }
 
 const LEVEL_STYLES: Record<ConfidenceLevel, string> = {
+  exact: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
   high: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   medium: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   low: 'bg-amber-500/20 text-amber-300 border-amber-500/30',

@@ -122,7 +122,8 @@ export function registerSearchHandlers(): void {
         const ids = [...allowedProductIds].slice(0, limit)
         return buildResults(
           db,
-          ids.map((id) => [id, 0] as [number, number])
+          ids.map((id) => [id, 0] as [number, number]),
+          'filter_only'
         )
       }
 
@@ -252,11 +253,47 @@ export function registerSearchHandlers(): void {
     }>
     return rows.map((r) => ({ ...r, vector: bufferToVector(r.vector) }))
   })
+
+  ipcMain.handle(
+    'db:search-by-model',
+    (_, ocrModel: string, limit = 10) => {
+      const db = getDatabase()
+      const normalized = ocrModel.toLowerCase().replace(/[\s\-_./]+/g, '')
+      if (!normalized) return [] as SearchResult[]
+
+      const allProducts = db
+        .prepare('SELECT id, model FROM products WHERE model IS NOT NULL AND model != ?')
+        .all('') as Array<{ id: number; model: string }>
+
+      const exact: Array<[number, number]> = []
+      const prefix: Array<[number, number]> = []
+      const partial: Array<[number, number]> = []
+
+      for (const row of allProducts) {
+        const pm = row.model.toLowerCase().replace(/[\s\-_./]+/g, '')
+        if (!pm) continue
+        if (pm === normalized) {
+          exact.push([row.id, 0.99])
+        } else if (pm.startsWith(normalized) || normalized.startsWith(pm)) {
+          prefix.push([row.id, 0.95])
+        } else if (pm.includes(normalized) || normalized.includes(pm)) {
+          partial.push([row.id, 0.90])
+        }
+      }
+
+      if (exact.length > 0) return buildResults(db, exact.slice(0, limit), 'model_exact')
+      if (prefix.length > 0) return buildResults(db, prefix.slice(0, limit), 'model_prefix')
+      if (partial.length > 0) return buildResults(db, partial.slice(0, limit), 'model_prefix')
+
+      return [] as SearchResult[]
+    }
+  )
 }
 
 function buildResults(
   db: ReturnType<typeof getDatabase>,
-  entries: Array<[number, number]>
+  entries: Array<[number, number]>,
+  matchSource: SearchResult['matchSource'] = 'visual'
 ): SearchResult[] {
   return entries.map(([productId, similarity]) => {
     const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId) as Product
@@ -264,14 +301,16 @@ function buildResults(
       .prepare('SELECT * FROM product_images WHERE product_id = ? ORDER BY order_index')
       .all(productId) as ProductImage[]
 
-    const confidence = getConfidenceLevel(similarity)
+    const confidence = getConfidenceLevel(similarity, matchSource)
     const matchReasons: string[] = []
-    if (similarity > 0.85) matchReasons.push('画像が非常に類似')
+    if (matchSource === 'model_exact') matchReasons.push('型番完全一致')
+    else if (matchSource === 'model_prefix') matchReasons.push('型番前方一致')
+    else if (similarity > 0.85) matchReasons.push('画像が非常に類似')
     else if (similarity > 0.7) matchReasons.push('画像が類似')
     else if (similarity === 0) matchReasons.push('属性一致')
     if (product.category) matchReasons.push(`カテゴリ: ${product.category}`)
     if (product.brand) matchReasons.push(`ブランド: ${product.brand}`)
 
-    return { product, images, similarity, matchReasons, confidence }
+    return { product, images, similarity, matchReasons, confidence, matchSource }
   })
 }

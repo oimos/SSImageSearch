@@ -35,7 +35,8 @@ function buildSearchResults(opts?: { weak?: boolean }) {
       ] : [],
       similarity,
       matchReasons: [`ブランド一致: ${p.brand}`, `カテゴリ一致: ${p.category}`],
-      confidence
+      confidence,
+      matchSource: 'visual'
     }
   })
 }
@@ -102,6 +103,8 @@ function buildMockApiScript(): string {
       normalizeOcr: async () => ({ brand: null, size: null, material: null, model: null, other_text: [], confidence: 0 }),
       clipStatus: async () => ({ ready: true }),
       extractFromImage: async () => ({ brand: null, category: null, size: null, material: null, model: null, other_text: [], confidence: 0 }),
+      classifyImageType: async () => ({ image_type: 'other', confidence: 0.9 }),
+      searchByModel: async () => [],
     };
   `
 }

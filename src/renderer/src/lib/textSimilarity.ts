@@ -1,4 +1,4 @@
-import type { Product, SearchResult } from '@shared/types'
+import type { Product, SearchResult, MatchSource } from '@shared/types'
 
 export interface OcrFields {
   brand: string | null
@@ -8,10 +8,25 @@ export interface OcrFields {
   material: string[] | null
 }
 
-const FIELD_WEIGHTS = {
+export interface ConflictInfo {
+  hasConflict: boolean
+  visualTopProduct: Product | null
+  tagTopProduct: Product | null
+  message: string | null
+}
+
+const FIELD_WEIGHTS_DEFAULT = {
   brand: 0.4,
   category: 0.3,
   model: 0.2,
+  size: 0.05,
+  material: 0.05
+} as const
+
+const FIELD_WEIGHTS_TAG_MODE = {
+  model: 0.45,
+  brand: 0.30,
+  category: 0.15,
   size: 0.05,
   material: 0.05
 } as const
@@ -60,65 +75,90 @@ function materialMatch(ocrMaterials: string[], productMaterial: string): number 
   return 0
 }
 
-/**
- * Compute a 0-1 text similarity score between OCR-extracted fields and product metadata.
- * Returns 0 when no OCR fields are available (no penalty).
- */
-export function computeTextSimilarity(ocr: OcrFields, product: Product): number {
+export function computeTextSimilarity(
+  ocr: OcrFields,
+  product: Product,
+  tagMode: boolean = false
+): number {
+  const weights = tagMode ? FIELD_WEIGHTS_TAG_MODE : FIELD_WEIGHTS_DEFAULT
   let weightedScore = 0
   let activeWeight = 0
 
   if (ocr.brand) {
-    activeWeight += FIELD_WEIGHTS.brand
-    weightedScore += FIELD_WEIGHTS.brand * brandMatch(ocr.brand, product.brand)
+    activeWeight += weights.brand
+    weightedScore += weights.brand * brandMatch(ocr.brand, product.brand)
   }
 
   if (ocr.category) {
-    activeWeight += FIELD_WEIGHTS.category
-    weightedScore += FIELD_WEIGHTS.category * categoryMatch(ocr.category, product.category)
+    activeWeight += weights.category
+    weightedScore += weights.category * categoryMatch(ocr.category, product.category)
   }
 
   if (ocr.model) {
-    activeWeight += FIELD_WEIGHTS.model
-    weightedScore += FIELD_WEIGHTS.model * modelMatch(ocr.model, product.model)
+    activeWeight += weights.model
+    weightedScore += weights.model * modelMatch(ocr.model, product.model)
   }
 
   if (ocr.size) {
-    activeWeight += FIELD_WEIGHTS.size
+    activeWeight += weights.size
     weightedScore +=
-      FIELD_WEIGHTS.size * (normalize(ocr.size) === normalize(product.size) ? 1.0 : 0)
+      weights.size * (normalize(ocr.size) === normalize(product.size) ? 1.0 : 0)
   }
 
   if (ocr.material && ocr.material.length > 0) {
-    activeWeight += FIELD_WEIGHTS.material
-    weightedScore += FIELD_WEIGHTS.material * materialMatch(ocr.material, product.material)
+    activeWeight += weights.material
+    weightedScore += weights.material * materialMatch(ocr.material, product.material)
   }
 
   if (activeWeight === 0) return 0
   return weightedScore / activeWeight
 }
 
-const VISUAL_WEIGHT = 0.6
-const TEXT_WEIGHT = 0.4
+const VISUAL_WEIGHT_DEFAULT = 0.6
+const TEXT_WEIGHT_DEFAULT = 0.4
+
+const VISUAL_WEIGHT_TAG = 0.2
+const TEXT_WEIGHT_TAG = 0.8
+
+export interface BoostOptions {
+  hasTag: boolean
+}
 
 /**
- * Re-rank search results by combining visual similarity with text similarity.
- * When no OCR fields are present, visual score is used as-is.
+ * 3-layer scoring: re-rank search results depending on tag availability.
+ *
+ * Layer 2 (tag mode):  visual * 0.2 + text * 0.8 with tag-optimized field weights.
+ * Layer 3 (fallback):  visual * 0.6 + text * 0.4 with default field weights.
+ *
+ * Layer 1 (model shortcut) is handled externally via db:search-by-model before
+ * this function is called.
  */
 export function boostResultsWithText(
   results: SearchResult[],
-  ocr: OcrFields | null
+  ocr: OcrFields | null,
+  options: BoostOptions = { hasTag: false }
 ): SearchResult[] {
   if (!ocr || (!ocr.brand && !ocr.category && !ocr.model && !ocr.size && !ocr.material?.length)) {
     return results
   }
 
+  const tagMode = options.hasTag
+  const visualWeight = tagMode ? VISUAL_WEIGHT_TAG : VISUAL_WEIGHT_DEFAULT
+  const textWeight = tagMode ? TEXT_WEIGHT_TAG : TEXT_WEIGHT_DEFAULT
+  const matchSource: MatchSource = tagMode ? 'tag_text' : 'visual'
+
   const boosted = results.map((result) => {
-    const textScore = computeTextSimilarity(ocr, result.product)
-    const boostedSimilarity = result.similarity * VISUAL_WEIGHT + textScore * TEXT_WEIGHT
+    if (result.matchSource === 'model_exact' || result.matchSource === 'model_prefix') {
+      return result
+    }
+
+    const textScore = computeTextSimilarity(ocr, result.product, tagMode)
+    const boostedSimilarity = result.similarity * visualWeight + textScore * textWeight
 
     const matchReasons = [...result.matchReasons]
-    if (textScore > 0.5) {
+    if (tagMode && textScore > 0.3) {
+      matchReasons.push('タグ情報一致')
+    } else if (textScore > 0.5) {
       matchReasons.push('テキスト情報一致')
     }
 
@@ -126,6 +166,7 @@ export function boostResultsWithText(
       ...result,
       similarity: boostedSimilarity,
       matchReasons,
+      matchSource,
       confidence:
         boostedSimilarity >= 0.85
           ? ('high' as const)
@@ -138,4 +179,55 @@ export function boostResultsWithText(
   })
 
   return boosted.sort((a, b) => b.similarity - a.similarity)
+}
+
+/**
+ * Merge Layer 1 model-match results with visual search results.
+ * Model matches are placed at the top; duplicates from visual are removed.
+ */
+export function mergeModelResults(
+  modelResults: SearchResult[],
+  visualResults: SearchResult[]
+): SearchResult[] {
+  const modelProductIds = new Set(modelResults.map((r) => r.product.id))
+  const filtered = visualResults.filter((r) => !modelProductIds.has(r.product.id))
+  return [...modelResults, ...filtered]
+}
+
+/**
+ * Detect conflict between visual top-1 and tag-driven top-1.
+ */
+export function detectConflict(
+  visualResults: SearchResult[],
+  finalResults: SearchResult[]
+): ConflictInfo {
+  const empty: ConflictInfo = {
+    hasConflict: false,
+    visualTopProduct: null,
+    tagTopProduct: null,
+    message: null
+  }
+
+  const visualTop = visualResults[0]
+  const finalTop = finalResults[0]
+
+  if (!visualTop || !finalTop) return empty
+
+  if (
+    visualTop.product.id !== finalTop.product.id &&
+    visualTop.similarity >= 0.7 &&
+    finalTop.matchSource !== 'visual'
+  ) {
+    const tagLabel = [finalTop.product.brand, finalTop.product.model].filter(Boolean).join(' ')
+    const visualLabel = [visualTop.product.brand, visualTop.product.model].filter(Boolean).join(' ')
+
+    return {
+      hasConflict: true,
+      visualTopProduct: visualTop.product,
+      tagTopProduct: finalTop.product,
+      message: `タグ情報は「${tagLabel}」を示していますが、画像は「${visualLabel}」に最も類似しています。確認してください。`
+    }
+  }
+
+  return empty
 }

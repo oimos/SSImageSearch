@@ -4,7 +4,6 @@ import { useSearch } from '../hooks/useSearch'
 import { fileToBase64, generateVectors } from '../lib/embedding'
 import type { OcrFields } from '../lib/textSimilarity'
 import type {
-  ImageType,
   UploadedImage,
   ProductFormData,
   ProductImage,
@@ -37,10 +36,11 @@ export default function Workspace(): JSX.Element {
   const {
     loading,
     progress,
+    conflict,
     searchByImages,
     reSearchWithFilters,
     searchByFilters,
-    applyTextBoost,
+    applyTagDrivenScoring,
     clearCache
   } = useSearch()
 
@@ -109,48 +109,112 @@ export default function Workspace(): JSX.Element {
         .slice(0, 5)
       if (fileArray.length === 0) return
 
-      const types: ImageType[] = ['tag', 'full', 'logo', 'detail', 'other']
       const images: UploadedImage[] = []
       for (let i = 0; i < fileArray.length; i++) {
         const data = await fileToBase64(fileArray[i])
-        images.push({ data, name: fileArray[i].name, type: types[i] || 'other', index: i })
+        images.push({ data, name: fileArray[i].name, type: 'other', index: i })
       }
       setUploadedImages(images)
       hasImagesRef.current = true
       setPhase('searching')
-      setOcrStatus('AI解析中...')
+      setOcrStatus('AI画像分類中...')
 
-      const ocrPromise = window.api.extractFromImage(images[0].data).catch(() => null)
-
+      // Step 0: classify all images in parallel + start visual search
       const hasActiveFilter = Object.values(filters).some((v) => v)
+
+      const classifyPromise = Promise.all(
+        images.map((img) =>
+          window.api.classifyImageType(img.data).catch(() => ({
+            image_type: 'other' as const,
+            confidence: 0
+          }))
+        )
+      )
+
       const searchPromise = searchByImages(
         fileArray,
         10,
         hasActiveFilter ? filters : undefined
       )
 
-      const [ocrResult, initialResults] = await Promise.all([ocrPromise, searchPromise])
+      const [classifyResults, initialResults] = await Promise.all([
+        classifyPromise,
+        searchPromise
+      ])
 
-      if (ocrResult && (ocrResult.brand || ocrResult.category) && ocrResult.confidence > 0.3) {
-        const detectedParts = [ocrResult.brand, ocrResult.category].filter(Boolean)
-        setOcrStatus(`AI検出: ${detectedParts.join(' / ')}`)
-
-        const ocrFields: OcrFields = {
-          brand: ocrResult.brand ?? null,
-          category: ocrResult.category ?? null,
-          model: ocrResult.model ?? null,
-          size: ocrResult.size ?? null,
-          material: ocrResult.material ?? null
+      // Apply classification to uploaded images
+      const updatedImages = images.map((img, i) => {
+        const classified = classifyResults[i]
+        if (classified && classified.confidence >= 0.6) {
+          return { ...img, type: classified.image_type as UploadedImage['type'] }
         }
+        return img
+      })
+      setUploadedImages(updatedImages)
 
-        const boosted = applyTextBoost(initialResults, ocrFields)
-        applyResults(boosted, true, hasActiveFilter)
+      // Find tag image for OCR
+      const tagImage = updatedImages.find((img) => img.type === 'tag')
+      const hasTag = tagImage !== undefined
+
+      if (hasTag && tagImage) {
+        setOcrStatus('タグ画像を解析中...')
+        const ocrResult = await window.api.extractFromImage(tagImage.data).catch(() => null)
+
+        if (ocrResult && (ocrResult.brand || ocrResult.category || ocrResult.model) && ocrResult.confidence > 0.3) {
+          const detectedParts = [
+            ocrResult.model ? `型番: ${ocrResult.model}` : null,
+            ocrResult.brand,
+            ocrResult.category
+          ].filter(Boolean)
+          setOcrStatus(`タグ検出: ${detectedParts.join(' / ')}`)
+
+          const ocrFields: OcrFields = {
+            brand: ocrResult.brand ?? null,
+            category: ocrResult.category ?? null,
+            model: ocrResult.model ?? null,
+            size: ocrResult.size ?? null,
+            material: ocrResult.material ?? null
+          }
+
+          const { results: scoredResults } = await applyTagDrivenScoring(
+            initialResults,
+            ocrFields,
+            true
+          )
+          applyResults(scoredResults, true, hasActiveFilter)
+        } else {
+          setOcrStatus(null)
+          applyResults(initialResults, true, hasActiveFilter)
+        }
       } else {
-        setOcrStatus(null)
-        applyResults(initialResults, true, hasActiveFilter)
+        // No tag image: try OCR on first image as fallback (Layer 3)
+        const ocrResult = await window.api.extractFromImage(images[0].data).catch(() => null)
+
+        if (ocrResult && (ocrResult.brand || ocrResult.category) && ocrResult.confidence > 0.3) {
+          const detectedParts = [ocrResult.brand, ocrResult.category].filter(Boolean)
+          setOcrStatus(`AI検出: ${detectedParts.join(' / ')}`)
+
+          const ocrFields: OcrFields = {
+            brand: ocrResult.brand ?? null,
+            category: ocrResult.category ?? null,
+            model: ocrResult.model ?? null,
+            size: ocrResult.size ?? null,
+            material: ocrResult.material ?? null
+          }
+
+          const { results: scoredResults } = await applyTagDrivenScoring(
+            initialResults,
+            ocrFields,
+            false
+          )
+          applyResults(scoredResults, true, hasActiveFilter)
+        } else {
+          setOcrStatus(null)
+          applyResults(initialResults, true, hasActiveFilter)
+        }
       }
     },
-    [filters, searchByImages, applyTextBoost, setUploadedImages, applyResults]
+    [filters, searchByImages, applyTagDrivenScoring, setUploadedImages, applyResults]
   )
 
   const handleDrop = useCallback(
@@ -695,6 +759,14 @@ export default function Workspace(): JSX.Element {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
                   </svg>
                   <span className="text-xs text-accent">{ocrStatus}</span>
+                </div>
+              )}
+              {conflict?.hasConflict && conflict.message && (
+                <div data-testid="conflict-banner" className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <span className="text-xs text-amber-300 leading-relaxed">{conflict.message}</span>
                 </div>
               )}
               {weakResults && (
