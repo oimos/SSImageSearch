@@ -166,6 +166,7 @@ export function useSearch() {
 
   /**
    * Apply the 3-layer tag-driven scoring pipeline:
+   *  Layer 0: brand-filtered search to ensure matching-brand products are in the candidate pool
    *  Layer 1: model shortcut via db:search-by-model (if OCR extracted a model)
    *  Layer 2: tag-driven text boost (visual 0.2 + text 0.8) when hasTag
    *  Layer 3: default text boost (visual 0.6 + text 0.4) fallback
@@ -177,14 +178,42 @@ export function useSearch() {
       hasTag: boolean
     ): Promise<{ results: SearchResult[]; conflict: ConflictInfo | null }> => {
       cachedOcr.current = ocr
-      let finalResults = visualResults
+      let finalResults = [...visualResults]
+
+      // Layer 0: brand-filtered search to inject matching-brand products into the pool
+      if (ocr?.brand && cached.current.vectorPairs.length > 0) {
+        try {
+          const brandFilter: SearchFilter = { brand: ocr.brand }
+          const v2Vectors = cached.current.vectorPairs.map((vp) => vp.v2Vector)
+          const clipVectors = cached.current.vectorPairs.map((vp) => vp.clipVector)
+
+          const brandResults: SearchResult[] = await window.api.searchHybridBatch(
+            v2Vectors,
+            clipVectors,
+            10,
+            brandFilter
+          )
+
+          console.log('[applyTagDrivenScoring] brand-filtered results:', brandResults.length, 'for brand:', ocr.brand)
+
+          const existingIds = new Set(finalResults.map((r) => r.product.id))
+          for (const br of brandResults) {
+            if (!existingIds.has(br.product.id)) {
+              finalResults.push(br)
+              existingIds.add(br.product.id)
+            }
+          }
+        } catch {
+          console.warn('[applyTagDrivenScoring] brand-filtered search failed')
+        }
+      }
 
       // Layer 1: model shortcut
       if (hasTag && ocr?.model && ocr.model.trim()) {
         try {
           const modelResults: SearchResult[] = await window.api.searchByModel(ocr.model, 5)
           if (modelResults.length > 0) {
-            finalResults = mergeModelResults(modelResults, visualResults)
+            finalResults = mergeModelResults(modelResults, finalResults)
           }
         } catch {
           // Model search failed, continue with visual results
@@ -198,6 +227,10 @@ export function useSearch() {
       const conflictInfo = detectConflict(visualResults, finalResults)
       setConflict(conflictInfo)
       setResults(finalResults)
+
+      console.log('[applyTagDrivenScoring] final top-3:', finalResults.slice(0, 3).map((r) => ({
+        id: r.product.id, brand: r.product.brand, sim: r.similarity, source: r.matchSource
+      })))
 
       return { results: finalResults, conflict: conflictInfo }
     },

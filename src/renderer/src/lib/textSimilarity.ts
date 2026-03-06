@@ -114,6 +114,8 @@ export function computeTextSimilarity(
   return weightedScore / activeWeight
 }
 
+const BRAND_MISMATCH_CAP = 0.15
+
 const VISUAL_WEIGHT_DEFAULT = 0.6
 const TEXT_WEIGHT_DEFAULT = 0.4
 
@@ -153,9 +155,18 @@ export function boostResultsWithText(
     }
 
     const textScore = computeTextSimilarity(ocr, result.product, tagMode)
-    const boostedSimilarity = result.similarity * visualWeight + textScore * textWeight
+    let boostedSimilarity = result.similarity * visualWeight + textScore * textWeight
 
     const matchReasons = [...result.matchReasons]
+
+    if (tagMode && ocr.brand) {
+      const bScore = brandMatch(ocr.brand, result.product.brand)
+      if (bScore === 0) {
+        boostedSimilarity = Math.min(boostedSimilarity, BRAND_MISMATCH_CAP)
+        matchReasons.push('ブランド不一致')
+      }
+    }
+
     if (tagMode && textScore > 0.3) {
       matchReasons.push('タグ情報一致')
     } else if (textScore > 0.5) {

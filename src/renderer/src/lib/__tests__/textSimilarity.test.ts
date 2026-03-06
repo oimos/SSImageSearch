@@ -113,6 +113,66 @@ describe('boostResultsWithText', () => {
   })
 })
 
+describe('brand mismatch hard penalty (tag mode)', () => {
+  it('caps similarity at 0.15 when tag brand != product brand', () => {
+    const result = makeResult({
+      product: makeProduct({ id: 1, brand: 'YOHJI YAMAMOTO' }),
+      similarity: 0.87
+    })
+    const ocr: OcrFields = { brand: 'VICTIM', category: null, model: null, size: null, material: null }
+    const boosted = boostResultsWithText([result], ocr, { hasTag: true })
+    expect(boosted[0].similarity).toBeLessThanOrEqual(0.15)
+    expect(boosted[0].matchReasons).toContain('ブランド不一致')
+  })
+
+  it('does NOT penalize when brands match', () => {
+    const result = makeResult({
+      product: makeProduct({ id: 1, brand: 'VICTIM' }),
+      similarity: 0.70
+    })
+    const ocr: OcrFields = { brand: 'VICTIM', category: null, model: null, size: null, material: null }
+    const boosted = boostResultsWithText([result], ocr, { hasTag: true })
+    expect(boosted[0].similarity).toBeGreaterThan(0.15)
+    expect(boosted[0].matchReasons).not.toContain('ブランド不一致')
+  })
+
+  it('does NOT penalize in non-tag (fallback) mode', () => {
+    const result = makeResult({
+      product: makeProduct({ id: 1, brand: 'YOHJI YAMAMOTO' }),
+      similarity: 0.87
+    })
+    const ocr: OcrFields = { brand: 'VICTIM', category: null, model: null, size: null, material: null }
+    const boosted = boostResultsWithText([result], ocr, { hasTag: false })
+    expect(boosted[0].similarity).toBeGreaterThan(0.15)
+  })
+
+  it('correctly re-ranks: matching brand rises above mismatched brand', () => {
+    const mismatch = makeResult({
+      product: makeProduct({ id: 1, brand: 'YOHJI YAMAMOTO' }),
+      similarity: 0.90
+    })
+    const match = makeResult({
+      product: makeProduct({ id: 2, brand: 'VICTIM' }),
+      similarity: 0.40
+    })
+    const ocr: OcrFields = { brand: 'VICTIM', category: null, model: null, size: null, material: null }
+    const boosted = boostResultsWithText([mismatch, match], ocr, { hasTag: true })
+    expect(boosted[0].product.id).toBe(2)
+    expect(boosted[0].product.brand).toBe('VICTIM')
+    expect(boosted[1].similarity).toBeLessThanOrEqual(0.15)
+  })
+
+  it('caps at 0.15 even with very high visual similarity', () => {
+    const result = makeResult({
+      product: makeProduct({ id: 1, brand: 'BALENCIAGA' }),
+      similarity: 0.99
+    })
+    const ocr: OcrFields = { brand: 'VICTIM', category: null, model: null, size: null, material: null }
+    const boosted = boostResultsWithText([result], ocr, { hasTag: true })
+    expect(boosted[0].similarity).toBeLessThanOrEqual(0.15)
+  })
+})
+
 describe('mergeModelResults', () => {
   it('places model results at top and removes duplicates', () => {
     const modelResult = makeResult({ product: makeProduct({ id: 10 }), matchSource: 'model_exact' })

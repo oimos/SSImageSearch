@@ -142,10 +142,10 @@ export default function Workspace(): JSX.Element {
         searchPromise
       ])
 
-      // Apply classification to uploaded images
+      // Apply classification to uploaded images (threshold lowered for better recall)
       const updatedImages = images.map((img, i) => {
         const classified = classifyResults[i]
-        if (classified && classified.confidence >= 0.6) {
+        if (classified && classified.confidence >= 0.4) {
           return { ...img, type: classified.image_type as UploadedImage['type'] }
         }
         return img
@@ -156,9 +156,14 @@ export default function Workspace(): JSX.Element {
       const tagImage = updatedImages.find((img) => img.type === 'tag')
       const hasTag = tagImage !== undefined
 
+      console.log('[handleFiles] classification results:', classifyResults)
+      console.log('[handleFiles] hasTag:', hasTag, 'tagImage index:', tagImage?.index)
+
       if (hasTag && tagImage) {
         setOcrStatus('タグ画像を解析中...')
         const ocrResult = await window.api.extractFromImage(tagImage.data).catch(() => null)
+
+        console.log('[handleFiles] tag OCR result:', ocrResult)
 
         if (ocrResult && (ocrResult.brand || ocrResult.category || ocrResult.model) && ocrResult.confidence > 0.3) {
           const detectedParts = [
@@ -181,32 +186,62 @@ export default function Workspace(): JSX.Element {
             ocrFields,
             true
           )
+          console.log('[handleFiles] tag-driven scored results:', scoredResults.slice(0, 3).map(r => ({ id: r.product.id, brand: r.product.brand, sim: r.similarity, source: r.matchSource })))
           applyResults(scoredResults, true, hasActiveFilter)
         } else {
           setOcrStatus(null)
           applyResults(initialResults, true, hasActiveFilter)
         }
       } else {
-        // No tag image: try OCR on first image as fallback (Layer 3)
-        const ocrResult = await window.api.extractFromImage(images[0].data).catch(() => null)
+        // No tag detected: OCR ALL images in parallel, pick best result
+        setOcrStatus('全画像をAI解析中...')
+        console.log('[handleFiles] no tag detected, running OCR on all images')
 
-        if (ocrResult && (ocrResult.brand || ocrResult.category) && ocrResult.confidence > 0.3) {
-          const detectedParts = [ocrResult.brand, ocrResult.category].filter(Boolean)
+        const ocrPromises = images.map((img) =>
+          window.api.extractFromImage(img.data).catch(() => null)
+        )
+        const allOcrResults = await Promise.all(ocrPromises)
+
+        console.log('[handleFiles] all OCR results:', allOcrResults)
+
+        let bestOcr: typeof allOcrResults[number] = null
+        let bestOcrConfidence = 0
+        let bestOcrHasTag = false
+        for (let i = 0; i < allOcrResults.length; i++) {
+          const r = allOcrResults[i]
+          if (r && (r.brand || r.category || r.model) && r.confidence > bestOcrConfidence) {
+            bestOcr = r
+            bestOcrConfidence = r.confidence
+            bestOcrHasTag = updatedImages[i]?.type === 'tag'
+          }
+        }
+
+        if (bestOcr && bestOcrConfidence > 0.3) {
+          const detectedParts = [
+            bestOcr.model ? `型番: ${bestOcr.model}` : null,
+            bestOcr.brand,
+            bestOcr.category
+          ].filter(Boolean)
           setOcrStatus(`AI検出: ${detectedParts.join(' / ')}`)
 
           const ocrFields: OcrFields = {
-            brand: ocrResult.brand ?? null,
-            category: ocrResult.category ?? null,
-            model: ocrResult.model ?? null,
-            size: ocrResult.size ?? null,
-            material: ocrResult.material ?? null
+            brand: bestOcr.brand ?? null,
+            category: bestOcr.category ?? null,
+            model: bestOcr.model ?? null,
+            size: bestOcr.size ?? null,
+            material: bestOcr.material ?? null
           }
+
+          // Even without explicit tag classification, if OCR found strong brand/model info, treat it as tag-level
+          const treatAsTag = bestOcrHasTag || bestOcrConfidence >= 0.7
+          console.log('[handleFiles] bestOcr:', bestOcr, 'treatAsTag:', treatAsTag)
 
           const { results: scoredResults } = await applyTagDrivenScoring(
             initialResults,
             ocrFields,
-            false
+            treatAsTag
           )
+          console.log('[handleFiles] fallback scored results:', scoredResults.slice(0, 3).map(r => ({ id: r.product.id, brand: r.product.brand, sim: r.similarity, source: r.matchSource })))
           applyResults(scoredResults, true, hasActiveFilter)
         } else {
           setOcrStatus(null)
