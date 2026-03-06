@@ -33,10 +33,11 @@ const api = {
   normalizeOcr: (rawOcrText: string, options?: OcrNormalizeOptions) =>
     ipcRenderer.invoke('ocr:normalize', rawOcrText, options),
 
-  extractCLIP: (imageBase64: string) =>
-    ipcRenderer.invoke('clip:extract', imageBase64),
+  generateVector: (imageBase64: string) =>
+    ipcRenderer.invoke('image:generate-vector', imageBase64),
 
-  clipStatus: () => ipcRenderer.invoke('clip:status'),
+  generateVectors: (imageBase64: string) =>
+    ipcRenderer.invoke('image:generate-vectors', imageBase64),
 
   searchHybrid: (
     v2Vector: number[] | null,
@@ -50,7 +51,12 @@ const api = {
     clipVectors: (number[] | null)[],
     limit?: number,
     filters?: SearchFilter
-  ) => ipcRenderer.invoke('db:search-hybrid-batch', v2Vectors, clipVectors, limit, filters)
+  ) => ipcRenderer.invoke('db:search-hybrid-batch', v2Vectors, clipVectors, limit, filters),
+
+  clipStatus: () => ipcRenderer.invoke('clip:status'),
+
+  extractFromImage: (imageBase64: string) =>
+    ipcRenderer.invoke('ocr:extract-from-image', imageBase64)
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -1,10 +1,13 @@
 import { useState, useCallback, useRef } from 'react'
 import type { SearchResult, SearchFilter } from '@shared/types'
-import { generateEmbedding, fileToArrayBuffer, fileToBase64 } from '../lib/embedding'
+import { generateVectors, fileToBase64 } from '../lib/embedding'
+import type { VectorsResult } from '../lib/embedding'
+import { boostResultsWithText } from '../lib/textSimilarity'
+import type { OcrFields } from '../lib/textSimilarity'
 
-interface CachedVectors {
-  v2: number[][]
-  clipBase64: string[]
+interface CachedQuery {
+  vectorPairs: VectorsResult[]
+  base64s: string[]
 }
 
 export function useSearch() {
@@ -13,75 +16,26 @@ export function useSearch() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const cachedVectors = useRef<CachedVectors>({ v2: [], clipBase64: [] })
+  const cached = useRef<CachedQuery>({ vectorPairs: [], base64s: [] })
+  const cachedOcr = useRef<OcrFields | null>(null)
 
-  const mergeAndSort = (
-    allResults: Map<number, SearchResult>,
-    limit: number
-  ): SearchResult[] => {
-    return [...allResults.values()]
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit)
-  }
-
-  const hybridSearch = useCallback(
+  const searchWithVectorPairs = useCallback(
     async (
-      v2Embeddings: number[][],
-      clipBase64s: string[],
+      vectorPairs: VectorsResult[],
       limit: number,
       filters?: SearchFilter
     ): Promise<SearchResult[]> => {
-      // Extract CLIP vectors for all images
-      const clipVectors: (number[] | null)[] = []
-      for (const base64 of clipBase64s) {
-        if (!base64) {
-          clipVectors.push(null)
-          continue
-        }
-        try {
-          const vec = await window.api.extractCLIP(base64)
-          clipVectors.push(vec)
-        } catch {
-          clipVectors.push(null)
-        }
-      }
+      const v2Vectors = vectorPairs.map((vp) => vp.v2Vector)
+      const clipVectors = vectorPairs.map((vp) => vp.clipVector)
 
-      // Use batch hybrid search for multi-photo aggregation with consistency penalty
-      if (v2Embeddings.length > 1) {
-        try {
-          return await window.api.searchHybridBatch(
-            v2Embeddings,
-            clipVectors,
-            limit,
-            filters
-          )
-        } catch {
-          /* fallback to sequential below */
-        }
-      }
+      const searchResults: SearchResult[] = await window.api.searchHybridBatch(
+        v2Vectors,
+        clipVectors,
+        limit * 2,
+        filters
+      )
 
-      // Single image or fallback: use per-image search
-      const allResults = new Map<number, SearchResult>()
-      for (let i = 0; i < v2Embeddings.length; i++) {
-        const clipVec = clipVectors[i]
-        let searchResults: SearchResult[]
-        if (clipVec) {
-          searchResults = await window.api.searchHybrid(
-            v2Embeddings[i], clipVec, limit * 2, filters
-          )
-        } else {
-          searchResults = await window.api.searchSimilar(
-            v2Embeddings[i], limit * 2, filters
-          )
-        }
-        for (const result of searchResults) {
-          const existing = allResults.get(result.product.id)
-          if (!existing || result.similarity > existing.similarity) {
-            allResults.set(result.product.id, result)
-          }
-        }
-      }
-      return mergeAndSort(allResults, limit)
+      return searchResults.slice(0, limit)
     },
     []
   )
@@ -99,27 +53,26 @@ export function useSearch() {
           throw new Error('検索する画像を1枚以上選択してください')
         }
 
-        const v2Embeddings: number[][] = []
-        const clipBase64s: string[] = []
+        const vectorPairs: VectorsResult[] = []
+        const base64s: string[] = []
 
         for (let i = 0; i < validFiles.length; i++) {
           setProgress(Math.round(((i + 0.2) / validFiles.length) * 100))
 
-          const buffer = await fileToArrayBuffer(validFiles[i])
-          const v2 = await generateEmbedding(buffer)
-          v2Embeddings.push(v2)
+          const base64 = await fileToBase64(validFiles[i])
+          base64s.push(base64)
 
           setProgress(Math.round(((i + 0.5) / validFiles.length) * 100))
 
-          const base64 = await fileToBase64(validFiles[i])
-          clipBase64s.push(base64)
+          const vecs = await generateVectors(base64)
+          vectorPairs.push(vecs)
 
-          setProgress(Math.round(((i + 0.8) / validFiles.length) * 100))
+          setProgress(Math.round(((i + 0.9) / validFiles.length) * 100))
         }
 
-        cachedVectors.current = { v2: v2Embeddings, clipBase64: clipBase64s }
+        cached.current = { vectorPairs, base64s }
 
-        const sorted = await hybridSearch(v2Embeddings, clipBase64s, limit, filters)
+        const sorted = await searchWithVectorPairs(vectorPairs, limit, filters)
         setProgress(100)
         setResults(sorted)
         return sorted
@@ -131,19 +84,18 @@ export function useSearch() {
         setLoading(false)
       }
     },
-    [hybridSearch]
+    [searchWithVectorPairs]
   )
 
   const reSearchWithFilters = useCallback(
     async (filters?: SearchFilter, limit = 10): Promise<SearchResult[]> => {
-      const { v2, clipBase64 } = cachedVectors.current
-      if (v2.length === 0) return []
+      if (cached.current.vectorPairs.length === 0) return []
 
       setLoading(true)
       setError(null)
 
       try {
-        const sorted = await hybridSearch(v2, clipBase64, limit, filters)
+        const sorted = await searchWithVectorPairs(cached.current.vectorPairs, limit, filters)
         setResults(sorted)
         return sorted
       } catch (err) {
@@ -154,7 +106,7 @@ export function useSearch() {
         setLoading(false)
       }
     },
-    [hybridSearch]
+    [searchWithVectorPairs]
   )
 
   const searchByFilters = useCallback(
@@ -190,11 +142,13 @@ export function useSearch() {
         const base64 = await window.api.readImage(firstPath)
         if (!base64) throw new Error('画像の読み込みに失敗しました')
 
-        const response = await fetch(base64)
-        const buffer = await response.arrayBuffer()
-        const embedding = await generateEmbedding(buffer)
+        const vecs = await generateVectors(base64)
 
-        const searchResults: SearchResult[] = await window.api.searchSimilar(embedding, limit)
+        const searchResults: SearchResult[] = await window.api.searchHybrid(
+          vecs.v2Vector,
+          vecs.clipVector,
+          limit
+        )
         setResults(searchResults)
         return searchResults
       } catch (err) {
@@ -208,8 +162,19 @@ export function useSearch() {
     []
   )
 
+  const applyTextBoost = useCallback(
+    (searchResults: SearchResult[], ocr: OcrFields | null): SearchResult[] => {
+      cachedOcr.current = ocr
+      const boosted = boostResultsWithText(searchResults, ocr)
+      setResults(boosted)
+      return boosted
+    },
+    []
+  )
+
   const clearCache = useCallback(() => {
-    cachedVectors.current = { v2: [], clipBase64: [] }
+    cached.current = { vectorPairs: [], base64s: [] }
+    cachedOcr.current = null
   }, [])
 
   return {
@@ -221,7 +186,8 @@ export function useSearch() {
     reSearchWithFilters,
     searchByFilters,
     searchByProductImages,
+    applyTextBoost,
     clearCache,
-    hasEmbeddings: cachedVectors.current.v2.length > 0
+    hasEmbeddings: cached.current.vectorPairs.length > 0
   }
 }

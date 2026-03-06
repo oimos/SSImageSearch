@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchFlow } from '../contexts/SearchFlowContext'
 import { useSearch } from '../hooks/useSearch'
-import { fileToBase64, generateEmbedding } from '../lib/embedding'
+import { fileToBase64, generateVectors } from '../lib/embedding'
+import type { OcrFields } from '../lib/textSimilarity'
 import type {
   ImageType,
   UploadedImage,
@@ -33,8 +34,15 @@ type ViewMode = 'list' | 'grid'
 export default function Workspace(): JSX.Element {
   const { uploadedImages, setUploadedImages, searchResults, setSearchResults, reset } =
     useSearchFlow()
-  const { loading, progress, searchByImages, reSearchWithFilters, searchByFilters, clearCache } =
-    useSearch()
+  const {
+    loading,
+    progress,
+    searchByImages,
+    reSearchWithFilters,
+    searchByFilters,
+    applyTextBoost,
+    clearCache
+  } = useSearch()
 
   const [phase, setPhase] = useState<WorkspacePhase>('idle')
   const [formData, setFormData] = useState<ProductFormData>({ ...EMPTY_FORM })
@@ -92,6 +100,8 @@ export default function Workspace(): JSX.Element {
     [setSearchResults]
   )
 
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null)
+
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
       const fileArray = Array.from(files)
@@ -108,16 +118,39 @@ export default function Workspace(): JSX.Element {
       setUploadedImages(images)
       hasImagesRef.current = true
       setPhase('searching')
+      setOcrStatus('AI解析中...')
+
+      const ocrPromise = window.api.extractFromImage(images[0].data).catch(() => null)
 
       const hasActiveFilter = Object.values(filters).some((v) => v)
-      const results = await searchByImages(
+      const searchPromise = searchByImages(
         fileArray,
         10,
         hasActiveFilter ? filters : undefined
       )
-      applyResults(results, true, hasActiveFilter)
+
+      const [ocrResult, initialResults] = await Promise.all([ocrPromise, searchPromise])
+
+      if (ocrResult && (ocrResult.brand || ocrResult.category) && ocrResult.confidence > 0.3) {
+        const detectedParts = [ocrResult.brand, ocrResult.category].filter(Boolean)
+        setOcrStatus(`AI検出: ${detectedParts.join(' / ')}`)
+
+        const ocrFields: OcrFields = {
+          brand: ocrResult.brand ?? null,
+          category: ocrResult.category ?? null,
+          model: ocrResult.model ?? null,
+          size: ocrResult.size ?? null,
+          material: ocrResult.material ?? null
+        }
+
+        const boosted = applyTextBoost(initialResults, ocrFields)
+        applyResults(boosted, true, hasActiveFilter)
+      } else {
+        setOcrStatus(null)
+        applyResults(initialResults, true, hasActiveFilter)
+      }
     },
-    [filters, searchByImages, setUploadedImages, applyResults]
+    [filters, searchByImages, applyTextBoost, setUploadedImages, applyResults]
   )
 
   const handleDrop = useCallback(
@@ -200,7 +233,7 @@ export default function Workspace(): JSX.Element {
     for (const key of Object.keys(EMPTY_FORM) as (keyof ProductFormData)[]) {
       const val = p[key]
       if (val !== undefined && val !== null && val !== '') {
-        ;(data as Record<string, unknown>)[key] = val
+        ;(data as unknown as Record<string, unknown>)[key] = val
         fields.add(key)
       }
     }
@@ -228,10 +261,11 @@ export default function Workspace(): JSX.Element {
           try {
             const imageId = savedImages[i]?.imageId ?? 0
             if (!imageId) continue
-            const resp = await fetch(uploadedImages[i].data)
-            const buf = await resp.arrayBuffer()
-            const emb = await generateEmbedding(buf)
-            await window.api.saveVector(imageId, productId, emb)
+            const { clipVector, v2Vector } = await generateVectors(uploadedImages[i].data)
+            await window.api.saveVector(imageId, productId, v2Vector)
+            if (clipVector) {
+              await window.api.saveVector(imageId, productId, clipVector)
+            }
           } catch (e) {
             console.error('Failed to save vector for image', i, e)
           }
@@ -618,7 +652,7 @@ export default function Workspace(): JSX.Element {
               <div className="flex items-center gap-2 px-1 mt-3">
                 <div className="animate-spin w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full" />
                 <span className="text-xs text-txt-tertiary">
-                  類似商品を照合中... {progress}%
+                  {ocrStatus ?? `類似商品を照合中... ${progress}%`}
                 </span>
               </div>
             </div>
@@ -655,6 +689,14 @@ export default function Workspace(): JSX.Element {
 
           {phase === 'results' && searchResults.length > 0 && (
             <div data-testid="candidate-list">
+              {ocrStatus && (
+                <div className="flex items-center gap-2 px-2 py-1.5 mb-3 rounded-lg bg-accent-muted/30 border border-accent/20">
+                  <svg className="w-4 h-4 text-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                  </svg>
+                  <span className="text-xs text-accent">{ocrStatus}</span>
+                </div>
+              )}
               {weakResults && (
                 <div data-testid="weak-results-banner" className="banner-warning mb-3">
                   <svg

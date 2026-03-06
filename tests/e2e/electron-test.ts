@@ -24,15 +24,20 @@ const MOCK_PRODUCTS = [
 
 function buildSearchResults(opts?: { weak?: boolean }) {
   const sim = opts?.weak ? 0.35 : 0.82
-  return MOCK_PRODUCTS.slice(0, 5).map((p, i) => ({
-    product: p,
-    images: i === 0 ? [
-      { id: 1, product_id: p.id, image_path: '/mock/tag.svg', image_type: 'tag', order_index: 0, created_at: p.created_at },
-      { id: 2, product_id: p.id, image_path: '/mock/full.svg', image_type: 'full', order_index: 1, created_at: p.created_at }
-    ] : [],
-    similarity: Math.max(0.15, sim - i * 0.12),
-    matchReasons: [`ブランド一致: ${p.brand}`, `カテゴリ一致: ${p.category}`]
-  }))
+  return MOCK_PRODUCTS.slice(0, 5).map((p, i) => {
+    const similarity = Math.max(0.15, sim - i * 0.12)
+    const confidence = similarity >= 0.85 ? 'high' : similarity >= 0.70 ? 'medium' : similarity >= 0.50 ? 'low' : 'weak'
+    return {
+      product: p,
+      images: i === 0 ? [
+        { id: 1, product_id: p.id, image_path: '/mock/tag.svg', image_type: 'tag', order_index: 0, created_at: p.created_at },
+        { id: 2, product_id: p.id, image_path: '/mock/full.svg', image_type: 'full', order_index: 1, created_at: p.created_at }
+      ] : [],
+      similarity,
+      matchReasons: [`ブランド一致: ${p.brand}`, `カテゴリ一致: ${p.category}`],
+      confidence
+    }
+  })
 }
 
 const SVG_BASE64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzY2NiIvPjwvc3ZnPg=='
@@ -73,12 +78,30 @@ function buildMockApiScript(): string {
       searchSimilar: async (vector, limit) => {
         return window.__mockSearchResults;
       },
+      searchHybrid: async (v2Vector, clipVector, limit) => {
+        return window.__mockSearchResults;
+      },
+      searchHybridBatch: async (v2Vectors, clipVectors, limit) => {
+        return window.__mockSearchResults;
+      },
       saveImages: async (productId, images) => images.map((img, i) => ({
         ...img, path: '/mock/' + productId + '/' + i, imageId: productId * 100 + i
       })),
       readImage: async (imagePath) => '${SVG_BASE64}',
       saveVector: async () => {},
       getAllVectors: async () => [],
+      generateVector: async (imageBase64) => ({
+        vector: new Array(512).fill(0),
+        modelName: 'clip-vit-b32',
+        dim: 512
+      }),
+      generateVectors: async (imageBase64) => ({
+        clipVector: new Array(512).fill(0),
+        v2Vector: new Array(768).fill(0)
+      }),
+      normalizeOcr: async () => ({ brand: null, size: null, material: null, model: null, other_text: [], confidence: 0 }),
+      clipStatus: async () => ({ ready: true }),
+      extractFromImage: async () => ({ brand: null, category: null, size: null, material: null, model: null, other_text: [], confidence: 0 }),
     };
   `
 }
