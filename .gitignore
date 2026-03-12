@@ -10,5 +10,6 @@ blob-report/
 .env
 .env.local
 seed-data/images/
+seed-data/mens/images/
 rakuten_test/images/
 release/

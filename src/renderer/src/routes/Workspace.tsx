@@ -1166,10 +1166,12 @@ function CandidateRow({
             <span data-testid="candidate-category" className="badge-info shrink-0">
               {product.category}
             </span>
-            <ConfidenceBadge confidence={similarity} level={confidence} />
+            <span className="text-xs font-medium text-txt-secondary ml-auto tabular-nums">
+              ¥{product.price.toLocaleString()}
+            </span>
           </div>
           <p className="text-xs text-txt-secondary truncate mb-1.5">{product.model}</p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span
               data-testid="candidate-score"
               className="text-2xs text-txt-tertiary tabular-nums"
@@ -1181,9 +1183,6 @@ function CandidateRow({
                 {r}
               </span>
             ))}
-            <span className="text-xs font-medium text-txt-secondary ml-auto tabular-nums">
-              ¥{product.price.toLocaleString()}
-            </span>
           </div>
         </div>
       </div>
@@ -1243,23 +1242,25 @@ function CandidateCard({
         >
           {index + 1}
         </span>
-        <span className="absolute top-2 right-2">
-          <ConfidenceBadge confidence={similarity} level={confidence} />
-        </span>
       </div>
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 mb-1">
           <span className="text-xs font-semibold text-txt-primary truncate">{product.brand}</span>
           <span className="badge-info text-2xs shrink-0">{product.category}</span>
         </div>
-        <p className="text-2xs text-txt-secondary truncate mb-1.5">{product.model}</p>
-        <div className="flex items-center justify-between">
+        <p className="text-2xs text-txt-secondary truncate mb-1">{product.model}</p>
+        <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs font-medium text-txt-secondary tabular-nums">
             ¥{product.price.toLocaleString()}
           </span>
           {product.color && (
             <span className="text-2xs text-txt-muted truncate ml-1">{product.color}</span>
           )}
+        </div>
+        <div className="flex items-center gap-1.5 pt-1.5 border-t border-border-subtle">
+          <span data-testid="candidate-score" className="text-2xs text-txt-tertiary tabular-nums">
+            {pct > 0 ? `類似度 ${pct}%` : '属性一致'}
+          </span>
         </div>
         {selected && result.images.length > 1 && (
           <ImageStripMini images={result.images} />

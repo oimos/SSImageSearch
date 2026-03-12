@@ -6,7 +6,7 @@ test.describe('Home画面', () => {
   })
 
   test('#1 home-loads: 起動時にホーム画面が正しく表示される', async ({ appPage }) => {
-    await expect(appPage.locator('[data-testid="home-title"]')).toHaveText('買取類似検索')
+    await expect(appPage.locator('[data-testid="home-title"]')).toHaveText('買取ダッシュボード')
     await expect(appPage.locator('[data-testid="new-purchase-btn"]')).toBeVisible()
     await expect(appPage.locator('[data-testid="history-btn"]')).toBeVisible()
 

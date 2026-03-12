@@ -12,10 +12,17 @@ interface RawSeedItem {
   カテゴリ_メイン: string
   カテゴリ_サブ: string
   カテゴリ_詳細: string
+  型番モデル: string
   サイズ: string
+  色: string
+  素材: string
   状態: string
   販売価格: number | null
+  買収価格: number | null
   そのほかコメント: string
+  url: string
+  category: string
+  index: number
   images: string[]
 }
 
@@ -130,13 +137,31 @@ function generateDemoPrice(brand: string, category: string, seed: number): numbe
   return Math.round((min + base * (max - min)) / 10) * 10
 }
 
-const SEED_MODEL = 'features-v2'
+const SEED_MODEL = 'features-v2-mens'
 
 interface PreparedImage {
   productIdx: number
   imageIdx: number
   destPath: string
   vector: number[]
+}
+
+function findSeedDataDir(): string | null {
+  const candidates = [
+    path.join(process.resourcesPath ?? '', 'seed-data', 'mens'),
+    path.join(app.getAppPath(), 'seed-data', 'mens'),
+    path.join(process.cwd(), 'seed-data', 'mens')
+  ]
+  return candidates.find((p) => fs.existsSync(path.join(p, 'products.json'))) ?? null
+}
+
+function findLocalImages(seedImagesDir: string, productIndex: number): string[] {
+  const prefix = `メンズウェア_${String(productIndex).padStart(3, '0')}_`
+  if (!fs.existsSync(seedImagesDir)) return []
+  return fs
+    .readdirSync(seedImagesDir)
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.jpg'))
+    .sort()
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -152,47 +177,37 @@ export async function seedDatabase(): Promise<void> {
   db.prepare('DELETE FROM product_images').run()
   db.prepare('DELETE FROM products').run()
 
-  const candidatePaths = [
-    path.join(process.resourcesPath ?? '', 'seed-data', '2ndstreet_products.json'),
-    path.join(app.getAppPath(), 'seed-data', '2ndstreet_products.json'),
-    path.join(process.cwd(), 'seed-data', '2ndstreet_products.json')
-  ]
-
-  const seedDataPath = candidatePaths.find((p) => fs.existsSync(p))
-  if (!seedDataPath) {
-    console.warn('Seed data not found, skipping seed.')
+  const seedDir = findSeedDataDir()
+  if (!seedDir) {
+    console.warn('Seed data (mens) not found, skipping seed.')
     return
   }
 
+  const seedDataPath = path.join(seedDir, 'products.json')
   const rawItems: RawSeedItem[] = JSON.parse(fs.readFileSync(seedDataPath, 'utf-8'))
+  const seedImagesDir = path.join(seedDir, 'images')
 
   const imagesDir = path.join(app.getPath('userData'), 'images')
   fs.mkdirSync(imagesDir, { recursive: true })
 
-  const seedImagesDir = path.dirname(seedDataPath)
-  const seedImagesBase = path.join(seedImagesDir, 'images')
-
-  console.log('Generating pixel-based vectors from seed images...')
+  console.log(`Seeding ${rawItems.length} products from ${seedDir}...`)
   const prepared: PreparedImage[][] = []
 
   for (let i = 0; i < rawItems.length; i++) {
     const raw = rawItems[i]
+    const productIndex = raw.index
+    const localFiles = findLocalImages(seedImagesDir, productIndex)
+
     const productImagesDir = path.join(imagesDir, String(i + 1))
     fs.mkdirSync(productImagesDir, { recursive: true })
 
-    const srcDir = path.join(seedImagesBase, String(i + 1))
-    const srcExists = fs.existsSync(srcDir)
     const images: PreparedImage[] = []
 
-    for (let j = 0; j < raw.images.length; j++) {
+    for (let j = 0; j < localFiles.length; j++) {
+      const srcFile = path.join(seedImagesDir, localFiles[j])
       const destPath = path.join(productImagesDir, `${j + 1}.jpg`)
 
-      if (srcExists) {
-        const srcFile = path.join(srcDir, `${j + 1}.jpg`)
-        if (fs.existsSync(srcFile)) {
-          fs.copyFileSync(srcFile, destPath)
-        }
-      }
+      fs.copyFileSync(srcFile, destPath)
 
       let vector: number[]
       try {
@@ -205,6 +220,10 @@ export async function seedDatabase(): Promise<void> {
     }
 
     prepared.push(images)
+
+    if ((i + 1) % 10 === 0) {
+      console.log(`  Processed ${i + 1}/${rawItems.length} products...`)
+    }
   }
 
   const insertProduct = db.prepare(`
@@ -239,8 +258,8 @@ export async function seedDatabase(): Promise<void> {
         category,
         model: buildModel(raw.ブランド, raw.カテゴリ_詳細, parsed.model),
         size: raw.サイズ,
-        color: parsed.color,
-        material: parsed.material,
+        color: raw.色 || parsed.color,
+        material: raw.素材 || parsed.material,
         condition,
         price,
         notes: raw.そのほかコメント
@@ -270,5 +289,5 @@ export async function seedDatabase(): Promise<void> {
   })
 
   seedAll()
-  console.log(`Seeded ${rawItems.length} products with pixel-based vectors`)
+  console.log(`Seeded ${rawItems.length} products (${prepared.reduce((s, p) => s + p.length, 0)} images) with V2 vectors`)
 }

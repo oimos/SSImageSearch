@@ -73,6 +73,24 @@ function l2Normalize(vec: number[]): number[] {
   return vec.map((x) => x / norm)
 }
 
+type RawImageConstructor = new (
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number
+) => unknown
+
+async function sharpToRawImage(input: string | Buffer): Promise<unknown> {
+  const RawImage = (globalThis as Record<string, unknown>).__RawImage as RawImageConstructor
+  const { data, info } = await sharp(input)
+    .resize(224, 224, { fit: 'cover' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  return new RawImage(new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength), info.width, info.height, info.channels)
+}
+
 /**
  * Extract a 512-dim CLIP embedding from an image file.
  * Returns null if CLIP model is not available.
@@ -84,12 +102,7 @@ export async function extractCLIPFromFile(filePath: string): Promise<number[] | 
   }
 
   try {
-    const RawImage = (globalThis as Record<string, unknown>).__RawImage as {
-      fromSharp(sharp: unknown): Promise<unknown>
-    }
-
-    const sharpInstance = sharp(filePath).resize(224, 224, { fit: 'cover' }).removeAlpha()
-    const image = await RawImage.fromSharp(sharpInstance)
+    const image = await sharpToRawImage(filePath)
 
     const result = await _pipeline!(image, { pooling: 'mean', normalize: true })
     const vectors = result.tolist()
@@ -116,12 +129,7 @@ export async function extractCLIPFromBuffer(buffer: Buffer): Promise<number[] | 
   }
 
   try {
-    const RawImage = (globalThis as Record<string, unknown>).__RawImage as {
-      fromSharp(sharp: unknown): Promise<unknown>
-    }
-
-    const sharpInstance = sharp(buffer).resize(224, 224, { fit: 'cover' }).removeAlpha()
-    const image = await RawImage.fromSharp(sharpInstance)
+    const image = await sharpToRawImage(buffer)
 
     const result = await _pipeline!(image, { pooling: 'mean', normalize: true })
     const vectors = result.tolist()
